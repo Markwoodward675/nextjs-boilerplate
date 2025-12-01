@@ -24,7 +24,7 @@ export default function HomePage() {
             color: "#22c55e"
           }}
         >
-          Demo · Educational Only
+          Trading · Investments · Wallets
         </span>
 
         <h1
@@ -35,7 +35,8 @@ export default function HomePage() {
             color: "#bfdbfe"
           }}
         >
-          Day Trader – practice trading on your phone before risking real money.
+          Day Trader — a modern trading & investment platform you can access
+          from your phone.
         </h1>
 
         <p
@@ -48,9 +49,9 @@ export default function HomePage() {
             marginRight: "auto"
           }}
         >
-          Day Trader is a simulation platform using virtual funds. No deposits,
-          no live orders, and no investment advice. Use it to build clarity,
-          confidence, and consistency before going live with your own broker.
+          Create an account, track markets, manage wallets, and prepare your
+          trades from one interface. Live execution and custody are handled by
+          your own broker or exchange.
         </p>
 
         <div
@@ -73,7 +74,7 @@ export default function HomePage() {
               fontSize: 14
             }}
           >
-            Create demo account
+            Create account
           </Link>
           <Link
             href="/auth/login"
@@ -97,7 +98,8 @@ export default function HomePage() {
             color: "#6b7280"
           }}
         >
-          Not a broker. No real-money trading or custody on this site.
+          Day Trader provides tools and data. We don&apos;t execute trades,
+          hold client funds, or give personalized investment advice.
         </p>
       </div>
     </main>
