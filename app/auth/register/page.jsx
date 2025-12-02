@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { account, IDHelper } from "../../../lib/appwrite";
 import { initUserAfterSignup } from "../../../lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [form, setForm] = useState({
     name: "",
@@ -18,9 +17,19 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Capture ?ref=CODE or existing saved code
+  // Capture ?ref=CODE from the browser URL (no useSearchParams)
   useEffect(() => {
-    const fromUrl = searchParams.get("ref");
+    let fromUrl = null;
+
+    if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href);
+        fromUrl = url.searchParams.get("ref");
+      } catch {
+        fromUrl = null;
+      }
+    }
+
     if (fromUrl) {
       setReferralCode(fromUrl);
       if (typeof window !== "undefined") {
@@ -30,7 +39,7 @@ export default function RegisterPage() {
       const saved = window.localStorage.getItem("daytrader_ref_code");
       if (saved) setReferralCode(saved);
     }
-  }, [searchParams]);
+  }, []);
 
   function onChange(e) {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
