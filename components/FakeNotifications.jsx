@@ -14,7 +14,7 @@ const messages = [
     country: "United States",
     city: "New York",
     text: "invested",
-    amount: "1.2k,
+    amount: "1.2k",
     currency: "USD"
   },
   {
