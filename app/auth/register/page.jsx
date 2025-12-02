@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { account, IDHelper } from "../../../lib/appwrite";
 import { initUserAfterSignup } from "../../../lib/api";
 
+// Mark page as dynamic so Next doesn't try to statically prerender it
+export const dynamic = "force-dynamic";
+
 export default function RegisterPage() {
   const router = useRouter();
 
@@ -17,7 +20,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Capture ?ref=CODE from the browser URL (no useSearchParams)
+  // Capture ?ref=CODE from the browser URL manually (no useSearchParams)
   useEffect(() => {
     let fromUrl = null;
 
