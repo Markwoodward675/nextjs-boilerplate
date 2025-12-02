@@ -18,6 +18,11 @@ export default function SettingsPage() {
     affiliate: null
   });
 
+  // Local-only preview state for profile picture & KYC files
+  const [profilePreview, setProfilePreview] = useState(null);
+  const [kycIdFile, setKycIdFile] = useState(null);
+  const [kycProofFile, setKycProofFile] = useState(null);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -118,6 +123,25 @@ export default function SettingsPage() {
     }
   }
 
+  function handleProfileFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProfilePreview(URL.createObjectURL(file));
+    // TODO: wire to Appwrite Storage bucket for real upload
+  }
+
+  function handleKycIdChange(e) {
+    const file = e.target.files?.[0];
+    setKycIdFile(file || null);
+    // TODO: wire to Appwrite Storage
+  }
+
+  function handleKycProofChange(e) {
+    const file = e.target.files?.[0];
+    setKycProofFile(file || null);
+    // TODO: wire to Appwrite Storage
+  }
+
   return (
     <main className="space-y-4 pb-10">
       {loading && (
@@ -134,11 +158,112 @@ export default function SettingsPage() {
           Account settings
         </h1>
         <p className="mt-1 text-xs text-slate-400">
-          Manage your Day Trader profile, preferences, and affiliate program
-          access.
+          Manage your Day Trader profile, avatar, KYC uploads, and affiliate
+          program access.
         </p>
       </Card>
 
+      {/* Profile & avatar */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Card>
+          <h2 className="text-sm font-semibold text-slate-100">
+            Profile & avatar
+          </h2>
+          <p className="mt-1 text-xs text-slate-400">
+            Upload a profile picture for your dashboard and account.
+          </p>
+
+          <div className="mt-3 flex items-center gap-4">
+            <div className="relative">
+              <div className="h-20 w-20 rounded-full border border-slate-700 bg-slate-900 overflow-hidden flex items-center justify-center text-xs text-slate-400">
+                {profilePreview ? (
+                  // Round preview modal style avatar
+                  <img
+                    src={profilePreview}
+                    alt="Profile preview"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span>No photo</span>
+                )}
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-400 space-y-2">
+              <div>
+                <span className="block text-[11px] text-slate-500">
+                  Upload profile image
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfileFileChange}
+                  className="mt-1 block text-[11px] text-slate-200"
+                />
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Recommended: square image, at least 256×256. This preview is
+                local only – connect Appwrite Storage to persist images.
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* KYC upload */}
+        <Card>
+          <h2 className="text-sm font-semibold text-slate-100">
+            KYC verification
+          </h2>
+          <p className="mt-1 text-xs text-slate-400">
+            Upload identity documents and proof of address as part of your KYC
+            process.
+          </p>
+
+          <div className="mt-3 space-y-3 text-xs text-slate-300">
+            <div>
+              <span className="block text-[11px] text-slate-500 mb-1">
+                Government ID (passport, national ID, or driver&apos;s license)
+              </span>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={handleKycIdChange}
+                className="block text-[11px] text-slate-200"
+              />
+              {kycIdFile && (
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Selected: {kycIdFile.name}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <span className="block text-[11px] text-slate-500 mb-1">
+                Proof of address (utility bill, bank statement)
+              </span>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={handleKycProofChange}
+                className="block text-[11px] text-slate-200"
+              />
+              {kycProofFile && (
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Selected: {kycProofFile.name}
+                </p>
+              )}
+            </div>
+
+            <p className="text-[10px] text-slate-500">
+              This interface is ready for integration with Appwrite Storage and
+              a KYC review workflow. For now, files are only selected and not
+              uploaded.
+            </p>
+          </div>
+        </Card>
+      </section>
+
+      {/* Affiliate center (unchanged logic, just grouped) */}
       <Card>
         <h2 className="text-sm font-semibold text-slate-100">
           Affiliate center
