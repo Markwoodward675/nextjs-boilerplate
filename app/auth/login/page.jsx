@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [nextUrl, setNextUrl] = useState("/dashboard");
 
-  // Read ?next=/something from URL without useSearchParams (to avoid build errors)
+  // Read ?next=/something from URL without useSearchParams (avoids build issues)
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -67,17 +67,19 @@ export default function LoginPage() {
     if (typeof window === "undefined") return;
 
     try {
-      const origin = window.location.origin;
+      // Prefer a fixed app URL from env so Appwrite always recognizes the domain
+      const appUrl =
+        process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
 
-      const successUrl = `${origin}${nextUrl}`;
-      const failureUrl = `${origin}/auth/login?oauth=failed`;
+      const successUrl = `${appUrl}${nextUrl}`;
+      const failureUrl = `${appUrl}/auth/login?oauth=failed`;
 
-      // This redirects the browser to Google, then back to successUrl / failureUrl
+      // Appwrite OAuth2 – this will redirect to Google then back to successUrl/failureUrl
       await account.createOAuth2Session("google", successUrl, failureUrl);
     } catch (err) {
       console.error("Google OAuth error:", err);
       setError(
-        "Unable to start Google sign-in. Check Google provider settings in Appwrite."
+        "Unable to start Google sign-in. Check Google provider settings and allowed Web platforms in Appwrite."
       );
     }
   }
