@@ -3,11 +3,10 @@ import { NextResponse } from "next/server";
 export async function POST(req) {
   try {
     const apiKey = process.env.NOWPAYMENTS_API_KEY;
-    const ipnUrl = process.env.NOWPAYMENTS_IPN_URL || undefined;
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "NOWPayments is not configured." },
+        { error: "NOWPayments is not configured on the server." },
         { status: 500 }
       );
     }
@@ -21,16 +20,25 @@ export async function POST(req) {
       );
     }
 
+    // Build basic invoice body
     const body = {
       price_amount: amount,
       price_currency: currency,
-      pay_currency: "btc", // you can change to "usdt", "eth", etc.
+      pay_currency: "btc",
       order_id: `dep_${Date.now()}`,
-      order_description: "Day Trader wallet deposit",
-      success_url: process.env.NOWPAYMENTS_SUCCESS_URL || "",
-      cancel_url: process.env.NOWPAYMENTS_CANCEL_URL || "",
-      ipn_callback_url: ipnUrl
+      order_description: "Day Trader wallet deposit"
     };
+
+    // Only add these if they are actually set (so NOWPayments doesn't see empty strings)
+    if (process.env.NOWPAYMENTS_SUCCESS_URL) {
+      body.success_url = process.env.NOWPAYMENTS_SUCCESS_URL;
+    }
+    if (process.env.NOWPAYMENTS_CANCEL_URL) {
+      body.cancel_url = process.env.NOWPAYMENTS_CANCEL_URL;
+    }
+    if (process.env.NOWPAYMENTS_IPN_URL) {
+      body.ipn_callback_url = process.env.NOWPAYMENTS_IPN_URL;
+    }
 
     const res = await fetch("https://api.nowpayments.io/v1/invoice", {
       method: "POST",
