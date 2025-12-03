@@ -1,253 +1,156 @@
+// app/giftcards/buy/page.jsx
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Card from "../../../components/Card";
-import {
-  getCurrentUser,
-  COLLECTIONS
-} from "../../../lib/api";
-import {
-  databases,
-  DB_ID,
-  QueryHelper,
-  IDHelper
-} from "../../../lib/appwrite";
+import { getCurrentUser, getUserWallets } from "../../../lib/api";
 
-const BRANDS = [
-  { id: "amazon", name: "Amazon", min: 25, max: 500 },
-  { id: "playstation", name: "PlayStation", min: 20, max: 200 },
-  { id: "steam", name: "Steam", min: 10, max: 250 }
-];
+const BRANDS = ["Amazon", "PlayStation", "Steam"];
 
-export default function BuyGiftCardsPage() {
-  const [state, setState] = useState({
-    loading: true,
-    error: "",
-    user: null,
-    mainWallet: null
-  });
-
-  const [brand, setBrand] = useState(BRANDS[0].id);
+export default function GiftcardsBuyPage() {
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+  const [user, setUser] = useState(null);
+  const [wallets, setWallets] = useState([]);
+  const [brand, setBrand] = useState("Amazon");
   const [amount, setAmount] = useState("50");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let mounted = true;
-
     (async () => {
+      const u = await getCurrentUser();
+      if (!mounted) return;
+      if (!u) {
+        router.replace("/auth/login?next=/giftcards/buy");
+        return;
+      }
+      setUser(u);
+      setChecking(false);
+
       try {
-        if (!DB_ID) {
-          if (mounted) {
-            setState({
-              loading: false,
-              error: "Appwrite database is not configured.",
-              user: null,
-              mainWallet: null
-            });
-          }
-          return;
-        }
-
-        const user = await getCurrentUser();
-        if (!user) {
-          if (mounted) {
-            setState({
-              loading: false,
-              error: "You need to be logged in.",
-              user: null,
-              mainWallet: null
-            });
-          }
-          return;
-        }
-
-        const walletRes = await databases.listDocuments(
-          DB_ID,
-          COLLECTIONS.wallets,
-          [QueryHelper.equal("userId", user.$id)]
-        );
-        let mainWallet = null;
-        if (walletRes.total > 0) {
-          mainWallet =
-            walletRes.documents.find((w) => w.type === "main") ||
-            walletRes.documents[0];
-        }
-
-        if (mounted) {
-          setState({
-            loading: false,
-            error: "",
-            user,
-            mainWallet
-          });
-        }
+        const w = await getUserWallets(u.$id);
+        if (!mounted) return;
+        setWallets(w);
       } catch (err) {
         console.error(err);
-        if (mounted) {
-          setState({
-            loading: false,
-            error:
-              "Unable to load wallet: " + (err?.message || ""),
-            user: null,
-            mainWallet: null
-          });
-        }
+        setError(String(err.message || err));
       }
     })();
-
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [router]);
 
-  const { loading, error, user, mainWallet } = state;
+  if (checking) {
+    return (
+      <main className="px-4 pt-6 pb-24 text-xs text-slate-400">
+        Checking session…
+      </main>
+    );
+  }
 
-  async function handleBuy(e) {
+  const main = wallets.find((w) => w.type === "main");
+  const mainBalance = main?.balance || 0;
+  const amt = parseFloat(amount || "0");
+
+  function handlePreview(e) {
     e.preventDefault();
     setMessage("");
 
-    if (!user || !mainWallet) {
-      setMessage("No wallet available for purchase.");
+    if (!amt || amt <= 0) {
+      setMessage("Enter a valid gift card amount.");
       return;
     }
 
-    const brandInfo = BRANDS.find((b) => b.id === brand);
-    if (!brandInfo) {
-      setMessage("Invalid brand.");
-      return;
-    }
-
-    const value = parseFloat(amount);
-    if (Number.isNaN(value)) {
-      setMessage("Invalid amount.");
-      return;
-    }
-    if (value < brandInfo.min || value > brandInfo.max) {
+    if (amt > mainBalance) {
       setMessage(
-        `Amount must be between ${brandInfo.min} and ${brandInfo.max}.`
+        "Insufficient main wallet balance to buy this gift card."
       );
       return;
     }
 
-    const balance = mainWallet.balance || 0;
-    if (balance < value) {
-      setMessage("Insufficient wallet balance for this gift card.");
-      return;
-    }
-
-    try {
-      const newBalance = balance - value;
-
-      const updatedWallet = await databases.updateDocument(
-        DB_ID,
-        COLLECTIONS.wallets,
-        mainWallet.$id,
-        { balance: newBalance }
-      );
-
-      await databases.createDocument(
-        DB_ID,
-        COLLECTIONS.transactions,
-        IDHelper.unique(),
-        {
-          userId: user.$id,
-          type: "giftcard_buy",
-          direction: "out",
-          amount: value,
-          currency: mainWallet.currency || "USD",
-          status: "pending",
-          note: `Gift card purchase: ${brandInfo.name}`
-        }
-      );
-
-      setState((prev) => ({ ...prev, mainWallet: updatedWallet }));
-      setMessage(
-        `Gift card purchase recorded for ${brandInfo.name} – ${value.toFixed(
-          2
-        )} ${mainWallet.currency || "USD"}.`
-      );
-    } catch (err) {
-      console.error(err);
-      setMessage("Unable to process gift card purchase right now.");
-    }
+    setMessage(
+      `Buying a ${brand} gift card worth $${amt.toFixed(
+        2
+      )} from your main wallet. Admin will process and send card details.`
+    );
   }
 
   return (
-    <main className="space-y-4 pb-10">
-      <Card>
-        <h1 className="text-sm font-semibold text-slate-100">
-          Buy gift cards
-        </h1>
-        <p className="mt-1 text-xs text-slate-400">
-          Convert a portion of your wallet into digital gift cards for spending,
-          rewards, or controlled payouts.
-        </p>
-      </Card>
-
-      {loading && (
-        <p className="text-xs text-slate-400">Loading wallet…</p>
-      )}
-      {error && (
-        <p className="text-xs text-red-400 bg-red-950/40 border border-red-900 rounded-md px-3 py-2">
-          {error}
-        </p>
-      )}
-
-      {mainWallet && (
+    <main className="px-4 pt-4 pb-24 space-y-4">
+      <section className="grid gap-3 md:grid-cols-[2fr,3fr]">
         <Card>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            Main wallet
+          <h1 className="text-xs font-semibold text-slate-100">
+            Buy gift cards
+          </h1>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Convert a portion of your wallet balance into digital gift cards
+            for spending, rewards, or controlled payouts.
           </p>
-          <p className="mt-1 text-sm font-semibold text-slate-100">
-            {mainWallet.balance.toFixed(2)}{" "}
-            {mainWallet.currency || "USD"}
-          </p>
-        </Card>
-      )}
 
-      <Card>
-        <form
-          onSubmit={handleBuy}
-          className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs"
-        >
-          <div>
-            <p className="text-[11px] text-slate-500 mb-1">Brand</p>
+          <form onSubmit={handlePreview} className="mt-3 space-y-2">
+            <div className="text-[11px] text-slate-400">Brand</div>
             <select
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
             >
               {BRANDS.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
+                <option key={b} value={b}>
+                  {b}
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <p className="text-[11px] text-slate-500 mb-1">Amount</p>
+
+            <div className="mt-2 text-[11px] text-slate-400">
+              Amount (USD)
+            </div>
             <input
               type="number"
-              min="1"
+              min="10"
+              step="10"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
             />
-          </div>
-          <div className="flex items-end">
+            <p className="mt-1 text-[10px] text-slate-500">
+              Main wallet balance: {mainBalance.toFixed(2)} USD
+            </p>
+
             <button
               type="submit"
-              className="w-full rounded-full bg-blue-600 px-4 py-2 text-xs font-medium text-white hover:bg-blue-500"
+              className="mt-3 w-full rounded-full bg-amber-500 px-4 py-2 text-[11px] font-medium text-slate-950 hover:bg-amber-400"
             >
-              Buy gift card
+              Preview purchase
             </button>
-          </div>
-        </form>
 
-        {message && (
-          <p className="mt-3 text-xs text-emerald-400">{message}</p>
-        )}
-      </Card>
+            {message && (
+              <p className="mt-2 text-[11px] text-emerald-300">
+                {message}
+              </p>
+            )}
+            {error && (
+              <p className="mt-2 text-[10px] text-red-400">
+                Unable to load wallet: {error}
+              </p>
+            )}
+          </form>
+        </Card>
+
+        <Card>
+          <h2 className="text-xs font-semibold text-slate-100">
+            Gift card ledger
+          </h2>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Gift card purchases will appear in Transactions with type
+            GIFTCARD_BUY, allowing you to track how payouts are structured
+            between cash, stablecoins, and gift cards.
+          </p>
+        </Card>
+      </section>
     </main>
   );
 }
