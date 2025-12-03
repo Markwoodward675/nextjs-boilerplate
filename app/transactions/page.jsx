@@ -1,164 +1,126 @@
+// app/transactions/page.jsx
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Card from "../../components/Card";
-import {
-  getCurrentUser,
-  COLLECTIONS
-} from "../../lib/api";
-import {
-  databases,
-  DB_ID,
-  QueryHelper
-} from "../../lib/appwrite";
+import { getCurrentUser, getUserTransactions } from "../../lib/api";
 
 export default function TransactionsPage() {
-  const [state, setState] = useState({
-    loading: true,
-    error: "",
-    user: null,
-    transactions: []
-  });
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+  const [user, setUser] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let mounted = true;
-
     (async () => {
+      const u = await getCurrentUser();
+      if (!mounted) return;
+      if (!u) {
+        router.replace("/auth/login?next=/transactions");
+        return;
+      }
+      setUser(u);
+      setChecking(false);
+
       try {
-        if (!DB_ID) {
-          if (mounted) {
-            setState({
-              loading: false,
-              error: "Appwrite database is not configured.",
-              user: null,
-              transactions: []
-            });
-          }
-          return;
-        }
-
-        const user = await getCurrentUser();
-        if (!user) {
-          if (mounted) {
-            setState({
-              loading: false,
-              error: "You need to be logged in.",
-              user: null,
-              transactions: []
-            });
-          }
-          return;
-        }
-
-        const txRes = await databases.listDocuments(
-          DB_ID,
-          COLLECTIONS.transactions,
-          [QueryHelper.equal("userId", user.$id)]
-        );
-
-        if (mounted) {
-          setState({
-            loading: false,
-            error: "",
-            user,
-            transactions: txRes.documents
-          });
-        }
+        const tx = await getUserTransactions(u.$id);
+        if (!mounted) return;
+        setTransactions(tx);
       } catch (err) {
         console.error(err);
-        if (mounted) {
-          setState({
-            loading: false,
-            error: "Unable to load transactions.",
-            user: null,
-            transactions: []
-          });
-        }
+        setError(String(err.message || err));
       }
     })();
-
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [router]);
 
-  const { loading, error, transactions } = state;
+  if (checking) {
+    return (
+      <main className="px-4 pt-6 pb-24 text-xs text-slate-400">
+        Checking session…
+      </main>
+    );
+  }
 
   return (
-    <main className="space-y-4 pb-10">
+    <main className="px-4 pt-4 pb-24 space-y-3">
       <Card>
-        <h1 className="text-sm font-semibold text-slate-100">
+        <h1 className="text-xs font-semibold text-slate-100">
           Transactions
         </h1>
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-[11px] text-slate-400">
           Ledger of deposits, withdrawals, investments, and affiliate
-          commissions tied to your account.
+          commissions tied to your Day Trader account.
         </p>
+        {error && (
+          <p className="mt-2 text-[10px] text-red-400">
+            Unable to load transactions: {error}
+          </p>
+        )}
       </Card>
 
-      {loading && (
-        <p className="text-xs text-slate-400">Loading transactions…</p>
-      )}
-      {error && (
-        <p className="text-xs text-red-400 bg-red-950/40 border border-red-900 rounded-md px-3 py-2">
-          {error}
-        </p>
-      )}
-
       <Card>
-        {transactions.length === 0 ? (
-          <p className="text-xs text-slate-400">
-            No transactions recorded yet. As you fund, withdraw, and invest,
-            they will appear here.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400">
-                  <th className="py-2 pr-3">Date</th>
-                  <th className="py-2 pr-3">Type</th>
-                  <th className="py-2 pr-3">Direction</th>
-                  <th className="py-2 pr-3">Amount</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-3">Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((tx) => (
-                  <tr
-                    key={tx.$id}
-                    className="border-b border-slate-900 last:border-0"
+        <div className="overflow-x-auto text-[11px]">
+          <table className="min-w-full text-left">
+            <thead>
+              <tr className="text-slate-400 border-b border-slate-800 text-[10px] uppercase tracking-wide">
+                <th className="py-2 pr-4">Date</th>
+                <th className="py-2 pr-4">Type</th>
+                <th className="py-2 pr-4">Amount</th>
+                <th className="py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.length === 0 && !error && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="py-4 text-slate-500 text-center"
                   >
-                    <td className="py-2 pr-3 text-slate-400">
-                      {new Date(tx.$createdAt).toLocaleString()}
-                    </td>
-                    <td className="py-2 pr-3 text-slate-200">
-                      {tx.type || "-"}
-                    </td>
-                    <td className="py-2 pr-3 text-slate-200">
-                      {tx.direction || "-"}
-                    </td>
-                    <td className="py-2 pr-3 text-emerald-300">
-                      {typeof tx.amount === "number"
-                        ? tx.amount.toFixed(2)
-                        : tx.amount}{" "}
-                      {tx.currency || "USD"}
-                    </td>
-                    <td className="py-2 pr-3 text-slate-200">
-                      {tx.status || "-"}
-                    </td>
-                    <td className="py-2 pr-3 text-slate-400">
-                      {tx.planName
-                        ? `Plan: ${tx.planName} (${tx.roi || ""})`
-                        : tx.note || "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                    No transactions recorded yet.
+                  </td>
+                </tr>
+              )}
+              {transactions.map((tx) => (
+                <tr
+                  key={tx.$id}
+                  className="border-b border-slate-900/80 last:border-b-0"
+                >
+                  <td className="py-2 pr-4 text-slate-300">
+                    {new Date(tx.$createdAt).toLocaleString()}
+                  </td>
+                  <td className="py-2 pr-4 text-slate-300 capitalize">
+                    {tx.type?.toLowerCase()}
+                  </td>
+                  <td className="py-2 pr-4 text-slate-300">
+                    {tx.amount?.toFixed
+                      ? tx.amount.toFixed(2)
+                      : tx.amount}{" "}
+                    {tx.currency || "USD"}
+                  </td>
+                  <td className="py-2 text-slate-300">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] ${
+                        tx.status === "completed"
+                          ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/40"
+                          : tx.status === "failed"
+                          ? "bg-red-500/10 text-red-300 border border-red-500/40"
+                          : "bg-slate-700/40 text-slate-200 border border-slate-600/60"
+                      }`}
+                    >
+                      {tx.status || "pending"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
     </main>
   );
