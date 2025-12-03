@@ -15,7 +15,7 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [nextUrl, setNextUrl] = useState("/dashboard");
 
-  // Read ?next=/something from URL without useSearchParams (avoids build issues)
+  // Read ?next=/something from URL
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -42,29 +42,27 @@ export default function RegisterPage() {
         password
       });
 
-      // registerUser already tries to create a session.
-      // After signup, send user to dashboard (or ?next)
       router.replace(nextUrl);
     } catch (err) {
       console.error("Register error:", err);
-      const msg = String(err?.message || "");
+
+      const msg =
+        err?.message ||
+        err?.response?.message ||
+        (typeof err === "string" ? err : JSON.stringify(err));
 
       if (
         msg.includes("Failed to fetch") ||
         msg.includes("Network request failed")
       ) {
         setError(
-          "Unable to reach the authentication service. Please check your internet connection and Appwrite configuration."
-        );
-      } else if (
-        msg.toLowerCase().includes("user already exists") ||
-        msg.toLowerCase().includes("already exists")
-      ) {
-        setError(
-          "An account with this email already exists. Try logging in instead."
+          "Network / Appwrite error: " +
+            msg +
+            ". Check NEXT_PUBLIC_APPWRITE_ENDPOINT & internet connection."
         );
       } else {
-        setError("Sign up failed. Please review your details and try again.");
+        // Show Appwrite message so we see if it's password too short / already exists / etc.
+        setError("Appwrite: " + msg);
       }
     } finally {
       setSubmitting(false);
@@ -96,9 +94,11 @@ export default function RegisterPage() {
       await account.createOAuth2Session("google", successUrl, failureUrl);
     } catch (err) {
       console.error("Google OAuth signup error:", err);
-      setError(
-        "Unable to start Google sign-up. Check Google provider settings and allowed Web platforms in Appwrite."
-      );
+      const msg =
+        err?.message ||
+        err?.response?.message ||
+        (typeof err === "string" ? err : JSON.stringify(err));
+      setError("Google OAuth error: " + msg);
     }
   }
 
@@ -160,6 +160,9 @@ export default function RegisterPage() {
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-blue-500"
                 required
               />
+              <p className="mt-1 text-[10px] text-slate-500">
+                Tip: Appwrite default is at least 8 characters.
+              </p>
             </div>
 
             <button
