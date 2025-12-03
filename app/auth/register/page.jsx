@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { account, IDHelper } from "../../../lib/appwrite";
 import { initUserAfterSignup } from "../../../lib/api";
 
-// Force this page to be dynamic so Next doesn't try to prerender it
 export const dynamic = "force-dynamic";
 
 export default function RegisterPage() {
@@ -18,9 +17,10 @@ export default function RegisterPage() {
   });
   const [referralCode, setReferralCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Read ?ref= from window.location (no useSearchParams at all)
+  // Capture ?ref=CODE from URL
   useEffect(() => {
     let fromUrl = null;
 
@@ -53,14 +53,25 @@ export default function RegisterPage() {
     setError("");
     setLoading(true);
     try {
+      // Create Appwrite user
       await account.create(
         IDHelper.unique(),
         form.email,
         form.password,
         form.name
       );
-      await account.createEmailSession(form.email, form.password);
 
+      // Try to create a session (ignore "session is active" error)
+      try {
+        await account.createEmailSession(form.email, form.password);
+      } catch (errSession) {
+        const msg = String(errSession?.message || "");
+        if (!msg.toLowerCase().includes("session is active")) {
+          throw errSession;
+        }
+      }
+
+      // Initialize profile/wallets/affiliate
       await initUserAfterSignup(referralCode || null);
 
       router.push("/dashboard");
@@ -69,6 +80,28 @@ export default function RegisterPage() {
       setError(err?.message || "Registration failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleGoogle() {
+    setError("");
+    setGoogleLoading(true);
+    try {
+      if (typeof window === "undefined") return;
+      const origin = window.location.origin;
+      await account.createOAuth2Session(
+        "google",
+        `${origin}/dashboard`,
+        `${origin}/auth/register`
+      );
+      // After redirect back, you can call initUserAfterSignup via a server route or dashboard load.
+    } catch (err) {
+      console.error(err);
+      setError(
+        err?.message ||
+          "Unable to start Google sign-up. Check Google provider in Appwrite."
+      );
+      setGoogleLoading(false);
     }
   }
 
@@ -138,9 +171,38 @@ export default function RegisterPage() {
             disabled={loading}
             className="mt-2 w-full rounded-full bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
           >
-            {loading ? "Creating account…" : "Create account"}
+            {loading ? "Creating account…" : "Create account with email"}
           </button>
         </form>
+
+        <div className="mt-4 flex items-center gap-2">
+          <div className="h-px flex-1 bg-slate-800" />
+          <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
+            or
+          </span>
+          <div className="h-px flex-1 bg-slate-800" />
+        </div>
+
+        <button
+          onClick={handleGoogle}
+          disabled={googleLoading}
+          className="mt-3 w-full rounded-full border border-slate-700 bg-slate-950 py-2 text-sm font-medium text-slate-100 hover:bg-slate-900 disabled:opacity-60 inline-flex items-center justify-center gap-2"
+        >
+          <span className="text-[13px]">🔐</span>
+          <span>
+            {googleLoading
+              ? "Connecting Google…"
+              : "Sign up with Google"}
+          </span>
+        </button>
+
+        <p className="mt-4 text-[11px] text-slate-500 text-center">
+          Already have an account?{" "}
+          <a href="/auth/login" className="text-blue-400 hover:text-blue-300">
+            Sign in
+          </a>
+          .
+        </p>
       </div>
     </main>
   );
