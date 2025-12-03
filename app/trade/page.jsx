@@ -7,112 +7,116 @@ export default function TradePage() {
     <main className="space-y-4 pb-10">
       <Card>
         <h1 className="text-sm font-semibold text-slate-100">
-          Trading layout
+          Crypto trading workspace
         </h1>
         <p className="mt-1 text-xs text-slate-400">
-          Use this workspace to combine market structure, execution plans, and
-          risk parameters into one repeatable process. Your orders are still
-          routed through your own broker or exchange.
+          Use this layout to plan and track your trades on BTC, ETH, and other
+          majors. Actual order execution happens with your own exchanges or
+          brokers.
         </p>
       </Card>
 
-      {/* Main charts row */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <Card>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            BTC / USDT
-          </p>
-          <h2 className="mt-1 text-sm font-semibold text-slate-100">
-            Head and shoulders pattern
-          </h2>
-          <div className="mt-3 h-32 relative chart-grid rounded-xl overflow-hidden">
-            <svg viewBox="0 0 200 80" className="w-full h-full text-sky-400">
+        {/* Chart */}
+        <Card className="lg:col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                BTC / USDT
+              </p>
+              <p className="text-sm text-slate-100 font-semibold">
+                91,661.79
+                <span className="ml-2 text-[11px] text-emerald-400">
+                  +5.89%
+                </span>
+              </p>
+            </div>
+            <div className="text-[10px] text-slate-400">
+              <span className="mr-2">1m</span>
+              <span className="mr-2 text-slate-200">5m</span>
+              <span className="mr-2">15m</span>
+              <span>1h</span>
+            </div>
+          </div>
+
+          <div className="h-44 rounded-xl chart-grid overflow-hidden relative">
+            <svg viewBox="0 0 200 100" className="w-full h-full text-sky-400">
               <polyline
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.6"
-                points="0,60 25,40 45,30 65,42 95,18 125,42 145,30 170,45 200,35"
+                points="0,80 10,76 20,70 30,74 40,60 50,64 60,48 70,56 80,40 90,46 100,33 110,42 120,30 130,36 140,26 150,32 160,22 170,30 180,20 190,26 200,18"
               />
             </svg>
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-slate-950 via-transparent to-transparent pointer-events-none" />
           </div>
           <p className="mt-2 text-[11px] text-slate-400">
-            Identify fair, clear structures instead of forcing trades in random
-            noise. Decide risk, invalidation, and execution in advance.
+            Mark your levels, invalidation, and target zones here before you
+            place orders on your exchange.
           </p>
         </Card>
 
+        {/* Order ticket */}
         <Card>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            ETH / BTC
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">
+            Order ticket (planning)
           </p>
-          <h2 className="mt-1 text-sm font-semibold text-slate-100">
-            Trend + pullbacks
-          </h2>
-          <div className="mt-3 h-32 relative chart-grid rounded-xl overflow-hidden">
-            <svg viewBox="0 0 200 80" className="w-full h-full text-emerald-400">
-              <polyline
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                points="0,65 20,55 35,60 55,45 70,50 90,35 110,42 130,28 155,34 180,24 200,26"
+          <div className="space-y-2 text-xs">
+            <div className="flex items-center gap-2 text-[11px]">
+              <button className="flex-1 rounded-full bg-emerald-600 py-1 text-slate-950 font-medium">
+                Buy
+              </button>
+              <button className="flex-1 rounded-full bg-red-500/10 text-red-300 border border-red-500/40 py-1">
+                Sell
+              </button>
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500 mb-1">
+                Size (USDT)
+              </p>
+              <input
+                type="number"
+                placeholder="500"
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-blue-500"
               />
-            </svg>
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent pointer-events-none" />
-          </div>
-          <p className="mt-2 text-[11px] text-slate-400">
-            Map higher timeframe direction, then execute on lower timeframes
-            with clear pullback zones and stop placements.
-          </p>
-        </Card>
-
-        <Card>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            Volume / rotations
-          </p>
-          <h2 className="mt-1 text-sm font-semibold text-slate-100">
-            Multi-bar flows
-          </h2>
-          <div className="mt-3 h-32 flex items-end gap-[3px]">
-            {[8, 26, 14, 36, 21, 40, 18, 30, 24, 16, 28, 34].map((h, idx) => (
-              <div
-                key={idx}
-                className="flex-1 flex items-end justify-center"
-              >
-                <div
-                  className="w-[7px] rounded-full bg-gradient-to-t from-slate-800 via-emerald-500/80 to-sky-400/80"
-                  style={{ height: `${h}px` }}
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-500 mb-1">
+                Entry price
+              </p>
+              <input
+                type="number"
+                placeholder="91661.79"
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-[11px] text-slate-500 mb-1">
+                  Stop loss
+                </p>
+                <input
+                  type="number"
+                  placeholder="89000"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-blue-500"
                 />
               </div>
-            ))}
+              <div>
+                <p className="text-[11px] text-slate-500 mb-1">
+                  Take profit
+                </p>
+                <input
+                  type="number"
+                  placeholder="95500"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1">
+              Use this ticket to define plan size, risk, and targets. Execute
+              the order on your exchange according to this plan.
+            </p>
           </div>
-          <p className="mt-2 text-[11px] text-slate-400">
-            Track where volume and attention are rotating rather than chasing
-            moves after they are already extended.
-          </p>
-        </Card>
-      </section>
-
-      {/* Risk + plan */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Card>
-          <h2 className="text-sm font-semibold text-slate-100">
-            Risk plan per trade
-          </h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Decide risk per trade, per day, and per week before the session
-            begins. This workspace is built around discipline first, entries
-            second.
-          </p>
-        </Card>
-        <Card>
-          <h2 className="text-sm font-semibold text-slate-100">
-            Execution checklists
-          </h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Codify your setups into checklists you can actually follow. Remove
-            improvisation and turn your playbook into repeatable behavior.
-          </p>
         </Card>
       </section>
     </main>
