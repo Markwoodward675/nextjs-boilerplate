@@ -2,25 +2,95 @@
 
 import Card from "../../components/Card";
 import { useEffect, useState } from "react";
-import { getCurrentUser } from "../../lib/api";
+import { getCurrentUser, COLLECTIONS } from "../../lib/api";
+import { databases, DB_ID, QueryHelper } from "../../lib/appwrite";
 
 export default function DashboardPage() {
-  const [user, setUser] = useState(null);
+  const [state, setState] = useState({
+    loading: true,
+    error: "",
+    user: null,
+    wallets: []
+  });
 
   useEffect(() => {
+    let mounted = true;
+
     (async () => {
       try {
-        const u = await getCurrentUser();
-        setUser(u);
-      } catch {
-        setUser(null);
+        if (!DB_ID) {
+          if (mounted) {
+            setState({
+              loading: false,
+              error: "Appwrite database is not configured.",
+              user: null,
+              wallets: []
+            });
+          }
+          return;
+        }
+
+        const user = await getCurrentUser();
+        if (!user) {
+          if (mounted) {
+            setState({
+              loading: false,
+              error: "You need to be logged in.",
+              user: null,
+              wallets: []
+            });
+          }
+          return;
+        }
+
+        const walletsRes = await databases.listDocuments(
+          DB_ID,
+          COLLECTIONS.wallets,
+          [QueryHelper.equal("userId", user.$id)]
+        );
+
+        if (mounted) {
+          setState({
+            loading: false,
+            error: "",
+            user,
+            wallets: walletsRes.documents
+          });
+        }
+      } catch (err) {
+        console.error(err);
+        if (mounted) {
+          setState({
+            loading: false,
+            error:
+              "Unable to load dashboard balances: " +
+              (err?.message || ""),
+            user: null,
+            wallets: []
+          });
+        }
       }
     })();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
+
+  const { loading, error, user, wallets } = state;
+
+  const totalBalance = wallets.reduce(
+    (sum, w) => sum + (w.balance || 0),
+    0
+  );
+  const mainWallet =
+    wallets.find((w) => w.type === "main") || wallets[0] || null;
+  const tradingWallet = wallets.find((w) => w.type === "trading") || null;
+  const affiliateWallet =
+    wallets.find((w) => w.type === "affiliate") || null;
 
   return (
     <main className="space-y-4 pb-10">
-      {/* Account summary */}
       <Card>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -31,7 +101,7 @@ export default function DashboardPage() {
               {user?.name || "Trader"}
             </h1>
             <p className="text-xs text-slate-400">
-              {user?.email || "Signed in with Appwrite"} · USER
+              {user?.email || "Signed in"} · USER
             </p>
             {user && (
               <p className="mt-1 text-[10px] text-slate-500 font-mono">
@@ -39,139 +109,86 @@ export default function DashboardPage() {
               </p>
             )}
           </div>
-          <div className="text-xs text-slate-400 space-y-2">
+          <div className="text-right text-xs text-slate-400">
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              Workflow
+              Total balance
             </p>
-            <p>
-              Fund wallets, allocate into strategies, track open risk, and
-              withdraw or reinvest gains.
+            <p className="mt-1 text-xl font-semibold text-blue-200">
+              {totalBalance.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })}{" "}
+              <span className="text-sm text-slate-300">
+                {mainWallet?.currency || "USD"}
+              </span>
             </p>
-            <div className="flex flex-wrap gap-2">
-              <a
-                href="/deposit"
-                className="inline-flex items-center rounded-full bg-emerald-500 px-3 py-1.5 text-[11px] font-medium text-slate-950 hover:bg-emerald-400"
-              >
-                + Fund wallet
-              </a>
-              <a
-                href="/trade"
-                className="inline-flex items-center rounded-full border border-slate-700 px-3 py-1.5 text-[11px] text-slate-200 hover:bg-slate-900"
-              >
-                Open trading layout
-              </a>
-              <a
-                href="/affiliate"
-                className="inline-flex items-center rounded-full border border-blue-600/70 px-3 py-1.5 text-[11px] text-blue-200 hover:bg-blue-900/20"
-              >
-                Affiliate center
-              </a>
-            </div>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Sum of main, trading, and affiliate wallets.
+            </p>
           </div>
         </div>
       </Card>
 
-      {/* Portfolio / risk / execution */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Card>
-          <h2 className="text-sm font-semibold text-slate-100">
-            Portfolio overview
-          </h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Map your capital across brokers, exchanges, and stablecoins. Track
-            per-asset, per-strategy, and per-account exposure.
-          </p>
-        </Card>
-        <Card>
-          <h2 className="text-sm font-semibold text-slate-100">
-            Risk & alerts
-          </h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Configure alerts, hard loss limits, and position sizing rules so
-            one trade never defines your month.
-          </p>
-        </Card>
-        <Card>
-          <h2 className="text-sm font-semibold text-slate-100">
-            Execution & journal
-          </h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Day Trader focuses on structure and discipline. Execution and
-            custody stay with your own regulated venues.
-          </p>
-        </Card>
-      </section>
+      {loading && (
+        <p className="text-xs text-slate-400">Loading balances…</p>
+      )}
+      {error && (
+        <p className="text-xs text-red-400 bg-red-950/40 border border-red-900 rounded-md px-3 py-2">
+          {error}
+        </p>
+      )}
 
-      {/* Wallets + affiliate */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Card>
-          <h2 className="text-sm font-semibold text-slate-100">Wallets</h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Main, trading, and affiliate wallets are tracked here with
-            card-style balances. Use Deposits and Withdrawals to control
-            cashflow.
-          </p>
-          <p className="mt-3 text-xs text-slate-500">
-            As you connect and fund accounts, this section will reflect real
-            balances, currencies, and limits per wallet.
-          </p>
-        </Card>
-
-        <Card>
-          <h2 className="text-sm font-semibold text-slate-100">
-            Affiliate overview
-          </h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Create an affiliate account in Settings and share your registration
-            links. Referred traders and their deposit volume can generate
-            recurring commission.
-          </p>
-          <p className="mt-3 text-xs text-slate-500">
-            Detailed referral and commission data is available in the Affiliate
-            and Transactions sections.
-          </p>
-        </Card>
-      </section>
-
-      {/* Markets / pattern cards */}
+      {/* Wallet quick view */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            BTC structure
+            Main wallet
           </p>
-          <h3 className="mt-1 text-sm font-semibold text-slate-100">
-            Trend, pullbacks, rotations
-          </h3>
-          <p className="mt-2 text-xs text-slate-400">
-            Focus on clean structures instead of noise: clear expansions,
-            measured pullbacks, and well-defined invalidation.
+          <p className="mt-1 text-sm font-semibold text-slate-100">
+            {mainWallet
+              ? mainWallet.balance.toFixed(2)
+              : "0.00"}{" "}
+            {mainWallet?.currency || "USD"}
           </p>
-        </Card>
-        <Card>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            ETH rotations
-          </p>
-          <h3 className="mt-1 text-sm font-semibold text-slate-100">
-            Technology exposure
-          </h3>
-          <p className="mt-2 text-xs text-slate-400">
-            Treat ETH and infrastructure names as part of your technology risk
-            bucket instead of random coins.
+          <p className="mt-1 text-[11px] text-slate-400">
+            Funding and capital allocation.
           </p>
         </Card>
         <Card>
           <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            Stablecoin flows
+            Trading wallet
           </p>
-          <h3 className="mt-1 text-sm font-semibold text-slate-100">
-            Cash & dry powder
-          </h3>
-          <p className="mt-2 text-xs text-slate-400">
-            Stablecoins, idle cash, and unallocated capital are tracked so you
-            always know how much risk you can deploy.
+          <p className="mt-1 text-sm font-semibold text-slate-100">
+            {tradingWallet
+              ? tradingWallet.balance.toFixed(2)
+              : "0.00"}{" "}
+            {tradingWallet?.currency || mainWallet?.currency || "USD"}
+          </p>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Active risk capital for live strategies.
+          </p>
+        </Card>
+        <Card>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+            Affiliate wallet
+          </p>
+          <p className="mt-1 text-sm font-semibold text-slate-100">
+            {affiliateWallet
+              ? affiliateWallet.balance.toFixed(2)
+              : "0.00"}{" "}
+            {affiliateWallet?.currency ||
+              tradingWallet?.currency ||
+              mainWallet?.currency ||
+              "USD"}
+          </p>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Earnings from referred traders and funded volume.
           </p>
         </Card>
       </section>
+
+      {/* Portfolio / risk / execution like before (you can keep or tweak) */}
+      {/* ... keep previous blocks here if you like them ... */}
     </main>
   );
 }
