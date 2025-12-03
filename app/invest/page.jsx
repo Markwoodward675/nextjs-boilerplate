@@ -137,7 +137,6 @@ export default function InvestPage() {
 
     let amount = plan.min;
 
-    // Ask the user for amount (browser only)
     try {
       if (typeof window !== "undefined") {
         const raw = window.prompt(
@@ -159,7 +158,6 @@ export default function InvestPage() {
         amount = parsed;
       }
     } catch {
-      // If prompt fails (SSR or some weird env) just use min
       amount = plan.min;
     }
 
@@ -172,7 +170,6 @@ export default function InvestPage() {
     try {
       const newBalance = currentBalance - amount;
 
-      // Update wallet balance
       const updatedWallet = await databases.updateDocument(
         DB_ID,
         COLLECTIONS.wallets,
@@ -182,7 +179,6 @@ export default function InvestPage() {
         }
       );
 
-      // Create transaction record
       const roiPercent = parseFloat(plan.roi.replace("%", ""));
       await databases.createDocument(
         DB_ID,
@@ -266,7 +262,7 @@ export default function InvestPage() {
           const roiPercent = parseFloat(plan.roi.replace("%", ""));
           const exampleAmount = plan.min;
           const totalReturn = (exampleAmount * roiPercent) / 100;
-          const dailyReturn = totalReturn / 30; // example on 30 days
+          const dailyReturn = totalReturn / 30;
 
           return (
             <Card key={plan.id}>
