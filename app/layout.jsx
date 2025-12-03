@@ -6,14 +6,20 @@ import FakeNotifications from "../components/FakeNotifications";
 export const metadata = {
   title: "Day Trader – Trading, Investments, Wallets",
   description:
-    "Day Trader is a modern trading and investment platform for managing wallets, tracking markets, and affiliate earnings."
+    "Day Trader is a modern trading and investment platform for organizing capital, tracking markets, and managing affiliate revenue."
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <div className="min-h-screen bg-slate-950 text-slate-100 flex">
+        <div className="crypto-particles">
+          <span />
+          <span />
+          <span />
+        </div>
+
+        <div className="app-shell relative z-10">
           <Sidebar />
           <main className="flex-1 flex flex-col">
             <div className="w-full max-w-6xl mx-auto px-4 md:px-8 py-4 md:py-6">
