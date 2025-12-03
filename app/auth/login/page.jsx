@@ -67,14 +67,24 @@ export default function LoginPage() {
     if (typeof window === "undefined") return;
 
     try {
-      // Prefer a fixed app URL from env so Appwrite always recognizes the domain
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+      const configuredAppUrl =
+        process.env.NEXT_PUBLIC_APP_URL || ""; // e.g. https://nextjs-boilerplate-psi-three-50.vercel.app
+      const currentOrigin = window.location.origin;
 
-      const successUrl = `${appUrl}${nextUrl}`;
-      const failureUrl = `${appUrl}/auth/login?oauth=failed`;
+      // If we have a configured app URL and we're not on that origin,
+      // tell the user to open the correct domain instead of calling Appwrite.
+      if (configuredAppUrl && !currentOrigin.startsWith(configuredAppUrl)) {
+        setError(
+          `Please open Day Trader on ${configuredAppUrl} to use Google sign-in. You are currently on ${currentOrigin}.`
+        );
+        return;
+      }
 
-      // Appwrite OAuth2 – this will redirect to Google then back to successUrl/failureUrl
+      const base = configuredAppUrl || currentOrigin;
+
+      const successUrl = `${base}${nextUrl}`;
+      const failureUrl = `${base}/auth/login?oauth=failed`;
+
       await account.createOAuth2Session("google", successUrl, failureUrl);
     } catch (err) {
       console.error("Google OAuth error:", err);
