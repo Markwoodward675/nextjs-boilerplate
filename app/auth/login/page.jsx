@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Card from "../../../components/Card";
 import { loginWithEmailPassword } from "../../../lib/api";
+import { account } from "../../../lib/appwrite";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,7 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [nextUrl, setNextUrl] = useState("/dashboard");
 
-  // Read ?next=/something from the URL without useSearchParams
+  // Read ?next=/something from URL without useSearchParams (to avoid build errors)
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -24,7 +25,7 @@ export default function LoginPage() {
         setNextUrl(n);
       }
     } catch {
-      // ignore – fallback stays /dashboard
+      // ignore
     }
   }, []);
 
@@ -46,7 +47,7 @@ export default function LoginPage() {
         msg.includes("Network request failed")
       ) {
         setError(
-          "Unable to reach the authentication service. Please check your internet connection and Appwrite configuration (endpoint & project ID)."
+          "Unable to reach the authentication service. Please check your internet connection and Appwrite configuration."
         );
       } else if (msg.toLowerCase().includes("invalid credentials")) {
         setError("Invalid email or password.");
@@ -60,11 +61,25 @@ export default function LoginPage() {
     }
   }
 
-  function handleGoogleSignIn() {
-    // Placeholder for future Appwrite OAuth2 Google integration
-    setError(
-      "Google sign-in will be wired through Appwrite OAuth2. For now, use email and password."
-    );
+  async function handleGoogleSignIn() {
+    setError("");
+
+    if (typeof window === "undefined") return;
+
+    try {
+      const origin = window.location.origin;
+
+      const successUrl = `${origin}${nextUrl}`;
+      const failureUrl = `${origin}/auth/login?oauth=failed`;
+
+      // This redirects the browser to Google, then back to successUrl / failureUrl
+      await account.createOAuth2Session("google", successUrl, failureUrl);
+    } catch (err) {
+      console.error("Google OAuth error:", err);
+      setError(
+        "Unable to start Google sign-in. Check Google provider settings in Appwrite."
+      );
+    }
   }
 
   return (
