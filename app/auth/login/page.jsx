@@ -1,19 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Card from "../../../components/Card";
 import { loginWithEmailPassword } from "../../../lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [nextUrl, setNextUrl] = useState("/dashboard");
 
-  const next = searchParams?.get("next") || "/dashboard";
+  // Read ?next=/something from the URL without useSearchParams
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const n = params.get("next");
+      if (n) {
+        setNextUrl(n);
+      }
+    } catch {
+      // ignore – fallback stays /dashboard
+    }
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -22,7 +35,7 @@ export default function LoginPage() {
 
     try {
       await loginWithEmailPassword(email, password);
-      router.replace(next);
+      router.replace(nextUrl);
     } catch (err) {
       console.error("Login error:", err);
 
@@ -48,7 +61,7 @@ export default function LoginPage() {
   }
 
   function handleGoogleSignIn() {
-    // Placeholder – you’ll wire real Appwrite OAuth2 later
+    // Placeholder for future Appwrite OAuth2 Google integration
     setError(
       "Google sign-in will be wired through Appwrite OAuth2. For now, use email and password."
     );
