@@ -146,3 +146,151 @@ body {
   transform: rotate(12deg);
   opacity: 0.35;
 }
+html,
+body {
+  padding: 0;
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter",
+    "SF Pro Text", sans-serif;
+  background: radial-gradient(circle at top, #020617 0, #020617 30%, #000 100%);
+  color: #e5e7eb;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(37, 99, 235, 0.16) 0, transparent 55%),
+    radial-gradient(circle at 90% 0%, rgba(16, 185, 129, 0.16) 0, transparent 55%),
+    radial-gradient(circle at 50% 100%, rgba(56, 189, 248, 0.12) 0, transparent 60%),
+    #020617;
+}
+
+/* Soft glow particles */
+.crypto-particles {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.crypto-particles span {
+  position: absolute;
+  display: block;
+  border-radius: 999px;
+  filter: blur(18px);
+}
+
+.crypto-particles span:nth-child(1) {
+  top: 8%;
+  left: 6%;
+  width: 140px;
+  height: 140px;
+  background: rgba(37, 99, 235, 0.25);
+}
+
+.crypto-particles span:nth-child(2) {
+  top: 40%;
+  right: 3%;
+  width: 180px;
+  height: 180px;
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.crypto-particles span:nth-child(3) {
+  bottom: 10%;
+  left: 25%;
+  width: 160px;
+  height: 160px;
+  background: rgba(56, 189, 248, 0.18);
+}
+
+/* Floating coins */
+.floating-coins {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.floating-coin {
+  position: absolute;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: radial-gradient(circle at 30% 20%, #facc15, #0f172a);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #e5e7eb;
+  animation: floatCoin 18s linear infinite;
+  opacity: 0.28;
+}
+
+.floating-coin:nth-child(1) {
+  top: 16%;
+  left: 14%;
+  width: 58px;
+  height: 58px;
+}
+
+.floating-coin:nth-child(2) {
+  top: 68%;
+  right: 8%;
+  width: 52px;
+  height: 52px;
+  animation-delay: -4s;
+}
+
+.floating-coin:nth-child(3) {
+  top: 32%;
+  right: 44%;
+  width: 46px;
+  height: 46px;
+  animation-delay: -9s;
+}
+
+.floating-coin:nth-child(4) {
+  bottom: 8%;
+  left: 6%;
+  width: 50px;
+  height: 50px;
+  animation-delay: -12s;
+}
+
+@keyframes floatCoin {
+  0% {
+    transform: translateY(0) translateX(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-12px) translateX(6px) rotate(4deg);
+  }
+  50% {
+    transform: translateY(-4px) translateX(-8px) rotate(-3deg);
+  }
+  75% {
+    transform: translateY(-10px) translateX(4px) rotate(2deg);
+  }
+  100% {
+    transform: translateY(0) translateX(0) rotate(0deg);
+  }
+}
+
+/* Simple chart grid reused on pages */
+.chart-grid {
+  background-image: linear-gradient(
+      rgba(15, 23, 42, 0.7) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(15, 23, 42, 0.7) 1px,
+      transparent 1px
+    );
+  background-size: 18px 18px;
+  background-position: -1px -1px;
+}
