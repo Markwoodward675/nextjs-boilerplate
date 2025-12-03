@@ -2,162 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Base reset */
 :root {
   color-scheme: dark;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html,
 body {
+  padding: 0;
+  margin: 0;
   height: 100%;
 }
 
 body {
-  @apply bg-slate-950 text-slate-100;
-  -webkit-font-smoothing: antialiased;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-.app-shell {
-  min-height: 100vh;
-  display: flex;
-}
-
-.app-main {
-  flex: 1;
-}
-
-/* Generic card */
-.card {
-  @apply rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 backdrop-blur;
-}
-html,
-body {
-  padding: 0;
-  margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter",
-    "SF Pro Text", sans-serif;
-  background: radial-gradient(circle at top, #020617 0, #020617 28%, #020617 50%, #020617 70%, #000 100%);
-  color: #e5e7eb;
-}
-
-.app-shell {
-  min-height: 100vh;
-  display: flex;
-  background:
-    radial-gradient(circle at 10% 0%, rgba(37, 99, 235, 0.18) 0, transparent 55%),
-    radial-gradient(circle at 90% 0%, rgba(16, 185, 129, 0.18) 0, transparent 55%),
-    radial-gradient(circle at 50% 100%, rgba(56, 189, 248, 0.14) 0, transparent 60%),
-    #020617;
-}
-
-/* Soft crypto "particles" */
-.crypto-particles {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.76;
-}
-
-.crypto-particles span {
-  position: absolute;
-  display: block;
-  border-radius: 999px;
-  filter: blur(18px);
-}
-
-.crypto-particles span:nth-child(1) {
-  top: 10%;
-  left: 8%;
-  width: 140px;
-  height: 140px;
-  background: rgba(37, 99, 235, 0.18);
-}
-
-.crypto-particles span:nth-child(2) {
-  top: 40%;
-  right: 4%;
-  width: 180px;
-  height: 180px;
-  background: rgba(16, 185, 129, 0.16);
-}
-
-.crypto-particles span:nth-child(3) {
-  bottom: 6%;
-  left: 20%;
-  width: 160px;
-  height: 160px;
-  background: rgba(56, 189, 248, 0.16);
-}
-
-/* Simple fake chart shapes */
-.chart-grid {
-  background-image: linear-gradient(
-      rgba(15, 23, 42, 0.75) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(15, 23, 42, 0.75) 1px,
-      transparent 1px
-    );
-  background-size: 18px 18px;
-  background-position: -1px -1px;
-}
-
-.candle {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  margin-right: 4px;
-}
-
-.candle-bar {
-  width: 8px;
-  border-radius: 999px;
-}
-
-.candle-wick {
-  width: 2px;
-  border-radius: 999px;
-}
-
-/* Triangles / pattern */
-.pattern-chip {
-  position: relative;
-  overflow: hidden;
-}
-
-.pattern-chip::before,
-.pattern-chip::after {
-  content: "";
-  position: absolute;
-  inset: -40%;
-  background-image: repeating-linear-gradient(
-    135deg,
-    rgba(30, 64, 175, 0.12),
-    rgba(30, 64, 175, 0.12) 1px,
-    transparent 1px,
-    transparent 8px
-  );
-  opacity: 0.5;
-}
-.pattern-chip::after {
-  transform: rotate(12deg);
-  opacity: 0.35;
-}
-html,
-body {
-  padding: 0;
-  margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter",
     "SF Pro Text", sans-serif;
   background: radial-gradient(circle at top, #020617 0, #020617 30%, #000 100%);
   color: #e5e7eb;
+  overflow-x: hidden; /* Avoid sideways scroll on mobile */
 }
 
+/* Make Next root fill screen */
+#__next,
+body > div {
+  min-height: 100vh;
+}
+
+/* App shell wrapping sidebar + main */
 .app-shell {
   min-height: 100vh;
+  width: 100%;
   display: flex;
   background:
     radial-gradient(circle at 10% 0%, rgba(37, 99, 235, 0.16) 0, transparent 55%),
@@ -166,13 +46,43 @@ body {
     #020617;
 }
 
-/* Soft glow particles */
+/* Anchor defaults */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Smooth animations */
+button,
+a {
+  transition: all 0.15s ease-out;
+}
+
+/* Scrollbars (optional but nice on desktop) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #020617;
+}
+::-webkit-scrollbar-thumb {
+  background: #1f2937;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}
+
+/* =========================
+   Crypto particles background
+   ========================= */
 .crypto-particles {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 .crypto-particles span {
@@ -206,7 +116,9 @@ body {
   background: rgba(56, 189, 248, 0.18);
 }
 
-/* Floating coins */
+/* =========================
+   Floating crypto coins
+   ========================= */
 .floating-coins {
   position: fixed;
   inset: 0;
@@ -280,7 +192,9 @@ body {
   }
 }
 
-/* Simple chart grid reused on pages */
+/* =========================
+   Chart-style background grid
+   ========================= */
 .chart-grid {
   background-image: linear-gradient(
       rgba(15, 23, 42, 0.7) 1px,
@@ -293,4 +207,24 @@ body {
     );
   background-size: 18px 18px;
   background-position: -1px -1px;
+}
+
+/* =========================
+   Utility classes for cards / modals
+   ========================= */
+
+.glass-card {
+  background: radial-gradient(circle at top left, #0f172a, #020617);
+  border-radius: 1.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
+}
+
+/* Optional modal backdrop */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  z-index: 40;
 }
