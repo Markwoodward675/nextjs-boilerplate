@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [nextUrl, setNextUrl] = useState("/dashboard");
 
-  // Read ?next=/something from URL without useSearchParams (avoids build issues)
+  // Read ?next=/something from URL without useSearchParams
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -40,21 +40,23 @@ export default function LoginPage() {
     } catch (err) {
       console.error("Login error:", err);
 
-      const msg = String(err?.message || "");
+      const msg =
+        err?.message ||
+        err?.response?.message ||
+        (typeof err === "string" ? err : JSON.stringify(err));
 
       if (
         msg.includes("Failed to fetch") ||
         msg.includes("Network request failed")
       ) {
         setError(
-          "Unable to reach the authentication service. Please check your internet connection and Appwrite configuration."
+          "Network / Appwrite error: " +
+            msg +
+            ". Check NEXT_PUBLIC_APPWRITE_ENDPOINT & internet connection."
         );
-      } else if (msg.toLowerCase().includes("invalid credentials")) {
-        setError("Invalid email or password.");
       } else {
-        setError(
-          "Sign in failed. Please confirm your email/password and try again."
-        );
+        // Show Appwrite's message directly so we see what's wrong
+        setError("Appwrite: " + msg);
       }
     } finally {
       setSubmitting(false);
@@ -68,11 +70,9 @@ export default function LoginPage() {
 
     try {
       const configuredAppUrl =
-        process.env.NEXT_PUBLIC_APP_URL || ""; // e.g. https://nextjs-boilerplate-psi-three-50.vercel.app
+        process.env.NEXT_PUBLIC_APP_URL || "";
       const currentOrigin = window.location.origin;
 
-      // If we have a configured app URL and we're not on that origin,
-      // tell the user to open the correct domain instead of calling Appwrite.
       if (configuredAppUrl && !currentOrigin.startsWith(configuredAppUrl)) {
         setError(
           `Please open Day Trader on ${configuredAppUrl} to use Google sign-in. You are currently on ${currentOrigin}.`
@@ -88,9 +88,11 @@ export default function LoginPage() {
       await account.createOAuth2Session("google", successUrl, failureUrl);
     } catch (err) {
       console.error("Google OAuth error:", err);
-      setError(
-        "Unable to start Google sign-in. Check Google provider settings and allowed Web platforms in Appwrite."
-      );
+      const msg =
+        err?.message ||
+        err?.response?.message ||
+        (typeof err === "string" ? err : JSON.stringify(err));
+      setError("Google OAuth error: " + msg);
     }
   }
 
