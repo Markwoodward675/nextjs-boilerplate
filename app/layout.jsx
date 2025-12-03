@@ -4,9 +4,9 @@ import Topbar from "../components/Topbar";
 import FakeNotifications from "../components/FakeNotifications";
 
 export const metadata = {
-  title: "Day Trader – Trading, Investments, Wallets",
+  title: "Day Trader – Trading, Investments, Wallets, Affiliate",
   description:
-    "Day Trader is a modern trading and investment platform for organizing capital, tracking markets, and managing affiliate revenue."
+    "Day Trader organizes trading capital, investments, and affiliate flows in one professional interface."
 };
 
 export default function RootLayout({ children }) {
@@ -17,6 +17,13 @@ export default function RootLayout({ children }) {
           <span />
           <span />
           <span />
+        </div>
+
+        <div className="floating-coins">
+          <div className="floating-coin">BTC</div>
+          <div className="floating-coin">ETH</div>
+          <div className="floating-coin">USDT</div>
+          <div className="floating-coin">SOL</div>
         </div>
 
         <div className="app-shell relative z-10">
