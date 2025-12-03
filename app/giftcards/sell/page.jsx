@@ -19,7 +19,7 @@ const BRANDS = [
   { id: "steam", name: "Steam" }
 ];
 
-// Example payout rate – adjust as you like
+// Example payout rate – adjust as needed
 const PAYOUT_RATE = 0.98; // 98% of face value
 
 export default function SellGiftCardsPage() {
@@ -67,7 +67,6 @@ export default function SellGiftCardsPage() {
           return;
         }
 
-        // Wallet
         const walletRes = await databases.listDocuments(
           DB_ID,
           COLLECTIONS.wallets,
@@ -80,7 +79,6 @@ export default function SellGiftCardsPage() {
             walletRes.documents[0];
         }
 
-        // Transactions (preview only)
         const txRes = await databases.listDocuments(
           DB_ID,
           COLLECTIONS.transactions,
@@ -178,7 +176,6 @@ export default function SellGiftCardsPage() {
         mainWallet: updatedWallet,
         giftTransactions: [
           {
-            // quick local preview, real one is in DB too
             $id: "local-" + Date.now(),
             $createdAt: new Date().toISOString(),
             type: "giftcard_sell",
@@ -246,7 +243,6 @@ export default function SellGiftCardsPage() {
         </Card>
       )}
 
-      {/* Sell form */}
       <Card>
         <form
           onSubmit={handleSell}
@@ -298,7 +294,6 @@ export default function SellGiftCardsPage() {
         )}
       </Card>
 
-      {/* Transactions preview */}
       <Card>
         <h2 className="text-sm font-semibold text-slate-100">
           Gift card transaction preview
