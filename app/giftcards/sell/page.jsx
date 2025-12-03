@@ -1,355 +1,141 @@
+// app/giftcards/sell/page.jsx
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Card from "../../../components/Card";
-import {
-  getCurrentUser,
-  COLLECTIONS
-} from "../../../lib/api";
-import {
-  databases,
-  DB_ID,
-  QueryHelper,
-  IDHelper
-} from "../../../lib/appwrite";
+import { getCurrentUser } from "../../../lib/api";
 
-const BRANDS = [
-  { id: "amazon", name: "Amazon" },
-  { id: "playstation", name: "PlayStation" },
-  { id: "steam", name: "Steam" }
-];
-
-// Example payout rate – adjust as needed
-const PAYOUT_RATE = 0.98; // 98% of face value
-
-export default function SellGiftCardsPage() {
-  const [state, setState] = useState({
-    loading: true,
-    error: "",
-    user: null,
-    mainWallet: null,
-    giftTransactions: []
-  });
-
-  const [brand, setBrand] = useState(BRANDS[0].id);
+export default function GiftcardsSellPage() {
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+  const [user, setUser] = useState(null);
+  const [brand, setBrand] = useState("Amazon");
+  const [code, setCode] = useState("");
   const [amount, setAmount] = useState("50");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     let mounted = true;
-
     (async () => {
-      try {
-        if (!DB_ID) {
-          if (mounted) {
-            setState({
-              loading: false,
-              error: "Appwrite database is not configured.",
-              user: null,
-              mainWallet: null,
-              giftTransactions: []
-            });
-          }
-          return;
-        }
-
-        const user = await getCurrentUser();
-        if (!user) {
-          if (mounted) {
-            setState({
-              loading: false,
-              error: "You need to be logged in.",
-              user: null,
-              mainWallet: null,
-              giftTransactions: []
-            });
-          }
-          return;
-        }
-
-        const walletRes = await databases.listDocuments(
-          DB_ID,
-          COLLECTIONS.wallets,
-          [QueryHelper.equal("userId", user.$id)]
-        );
-        let mainWallet = null;
-        if (walletRes.total > 0) {
-          mainWallet =
-            walletRes.documents.find((w) => w.type === "main") ||
-            walletRes.documents[0];
-        }
-
-        const txRes = await databases.listDocuments(
-          DB_ID,
-          COLLECTIONS.transactions,
-          [QueryHelper.equal("userId", user.$id)]
-        );
-        const giftTransactions = txRes.documents.filter((tx) =>
-          ["giftcard_buy", "giftcard_sell"].includes(tx.type || "")
-        );
-
-        if (mounted) {
-          setState({
-            loading: false,
-            error: "",
-            user,
-            mainWallet,
-            giftTransactions
-          });
-        }
-      } catch (err) {
-        console.error(err);
-        if (mounted) {
-          setState({
-            loading: false,
-            error:
-              "Unable to load gift card data: " + (err?.message || ""),
-            user: null,
-            mainWallet: null,
-            giftTransactions: []
-          });
-        }
+      const u = await getCurrentUser();
+      if (!mounted) return;
+      if (!u) {
+        router.replace("/auth/login?next=/giftcards/sell");
+        return;
       }
+      setUser(u);
+      setChecking(false);
     })();
-
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [router]);
 
-  const { loading, error, user, mainWallet, giftTransactions } = state;
+  if (checking) {
+    return (
+      <main className="px-4 pt-6 pb-24 text-xs text-slate-400">
+        Checking session…
+      </main>
+    );
+  }
 
-  async function handleSell(e) {
+  const amt = parseFloat(amount || "0");
+
+  function handlePreview(e) {
     e.preventDefault();
     setMessage("");
 
-    if (!user || !mainWallet) {
-      setMessage("No wallet available for payout.");
+    if (!code.trim()) {
+      setMessage("Enter a valid gift card code.");
       return;
     }
 
-    const brandInfo = BRANDS.find((b) => b.id === brand);
-    if (!brandInfo) {
-      setMessage("Invalid brand.");
+    if (!amt || amt <= 0) {
+      setMessage("Enter a valid gift card value.");
       return;
     }
 
-    const value = parseFloat(amount);
-    if (Number.isNaN(value) || value <= 0) {
-      setMessage("Invalid amount.");
-      return;
-    }
-
-    const payoutAmount = value * PAYOUT_RATE;
-    const currentBalance = Number(mainWallet.balance || 0);
-    const newBalance = currentBalance + payoutAmount;
-
-    try {
-      const updatedWallet = await databases.updateDocument(
-        DB_ID,
-        COLLECTIONS.wallets,
-        mainWallet.$id,
-        {
-          balance: newBalance
-        }
-      );
-
-      await databases.createDocument(
-        DB_ID,
-        COLLECTIONS.transactions,
-        IDHelper.unique(),
-        {
-          userId: user.$id,
-          type: "giftcard_sell",
-          direction: "in",
-          amount: payoutAmount,
-          currency: mainWallet.currency || "USD",
-          status: "pending",
-          note: `Gift card sell: ${brandInfo.name} (${value.toFixed(
-            2
-          )} face, ${PAYOUT_RATE * 100}% payout)`
-        }
-      );
-
-      setState((prev) => ({
-        ...prev,
-        mainWallet: updatedWallet,
-        giftTransactions: [
-          {
-            $id: "local-" + Date.now(),
-            $createdAt: new Date().toISOString(),
-            type: "giftcard_sell",
-            direction: "in",
-            amount: payoutAmount,
-            currency: mainWallet.currency || "USD",
-            status: "pending",
-            note: `Gift card sell: ${brandInfo.name} (${value.toFixed(
-              2
-            )} face)`
-          },
-          ...prev.giftTransactions
-        ]
-      }));
-
-      setMessage(
-        `Gift card sell recorded: ${brandInfo.name} ${value.toFixed(
-          2
-        )} face value, payout ${payoutAmount.toFixed(
-          2
-        )} ${mainWallet.currency || "USD"}.`
-      );
-    } catch (err) {
-      console.error(err);
-      setMessage("Unable to process gift card sell right now.");
-    }
+    setMessage(
+      `Submitting ${brand} gift card worth $${amt.toFixed(
+        2
+      )} for review. Admin will verify and credit your wallet if valid.`
+    );
   }
 
   return (
-    <main className="space-y-4 pb-10">
-      <Card>
-        <h1 className="text-sm font-semibold text-slate-100">
-          Sell gift cards
-        </h1>
-        <p className="mt-1 text-xs text-slate-400">
-          Convert supported gift cards into wallet balance. Payouts are
-          recorded as incoming transactions and are subject to admin review.
-        </p>
-      </Card>
-
-      {loading && (
-        <p className="text-xs text-slate-400">Loading data…</p>
-      )}
-      {error && (
-        <p className="text-xs text-red-400 bg-red-950/40 border border-red-900 rounded-md px-3 py-2">
-          {error}
-        </p>
-      )}
-
-      {mainWallet && (
+    <main className="px-4 pt-4 pb-24 space-y-4">
+      <section className="grid gap-3 md:grid-cols-[2fr,3fr]">
         <Card>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            Main wallet
+          <h1 className="text-xs font-semibold text-slate-100">
+            Sell gift cards
+          </h1>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Submit unused gift cards for review. After verification, admin
+            can credit equivalent value into your wallet.
           </p>
-          <p className="mt-1 text-sm font-semibold text-slate-100">
-            {Number(mainWallet.balance || 0).toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2
-            })}{" "}
-            {mainWallet.currency || "USD"}
-          </p>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Gift card sells credit this balance after admin verification.
-          </p>
-        </Card>
-      )}
 
-      <Card>
-        <form
-          onSubmit={handleSell}
-          className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs"
-        >
-          <div>
-            <p className="text-[11px] text-slate-500 mb-1">
-              Gift card brand
-            </p>
+          <form onSubmit={handlePreview} className="mt-3 space-y-2">
+            <div className="text-[11px] text-slate-400">Brand</div>
             <select
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
             >
-              {BRANDS.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
+              <option>Amazon</option>
+              <option>PlayStation</option>
+              <option>Steam</option>
             </select>
-          </div>
-          <div>
-            <p className="text-[11px] text-slate-500 mb-1">
+
+            <div className="mt-2 text-[11px] text-slate-400">
+              Card code / number
+            </div>
+            <input
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
+              placeholder="XXXX-XXXX-XXXX"
+            />
+
+            <div className="mt-2 text-[11px] text-slate-400">
               Face value (USD)
-            </p>
+            </div>
             <input
               type="number"
-              min="1"
+              min="10"
+              step="10"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
             />
-            <p className="mt-1 text-[10px] text-slate-500">
-              Payout at {PAYOUT_RATE * 100}% of face value.
-            </p>
-          </div>
-          <div className="flex items-end">
+
             <button
               type="submit"
-              className="w-full rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-slate-950 hover:bg-emerald-500"
+              className="mt-3 w-full rounded-full bg-amber-600 px-4 py-2 text-[11px] font-medium text-slate-950 hover:bg-amber-500"
             >
-              Sell gift card
+              Preview sale request
             </button>
-          </div>
-        </form>
 
-        {message && (
-          <p className="mt-3 text-xs text-emerald-400">{message}</p>
-        )}
-      </Card>
+            {message && (
+              <p className="mt-2 text-[11px] text-emerald-300">
+                {message}
+              </p>
+            )}
+          </form>
+        </Card>
 
-      <Card>
-        <h2 className="text-sm font-semibold text-slate-100">
-          Gift card transaction preview
-        </h2>
-        {giftTransactions.length === 0 ? (
-          <p className="mt-2 text-xs text-slate-400">
-            No gift card transactions yet. Your buy and sell activity will
-            appear here.
+        <Card>
+          <h2 className="text-xs font-semibold text-slate-100">
+            Transaction preview
+          </h2>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Once admin verifies gift card validity and rate, an entry will be
+            created in Transactions with type GIFTCARD_SELL and wallet
+            credits applied.
           </p>
-        ) : (
-          <div className="mt-2 overflow-x-auto">
-            <table className="w-full text-xs text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400">
-                  <th className="py-2 pr-3">Date</th>
-                  <th className="py-2 pr-3">Type</th>
-                  <th className="py-2 pr-3">Direction</th>
-                  <th className="py-2 pr-3">Amount</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-3">Note</th>
-                </tr>
-              </thead>
-              <tbody>
-                {giftTransactions.map((tx) => (
-                  <tr
-                    key={tx.$id}
-                    className="border-b border-slate-900 last:border-0"
-                  >
-                    <td className="py-2 pr-3 text-slate-400">
-                      {new Date(tx.$createdAt).toLocaleString()}
-                    </td>
-                    <td className="py-2 pr-3 text-slate-200">
-                      {tx.type}
-                    </td>
-                    <td className="py-2 pr-3 text-slate-200">
-                      {tx.direction}
-                    </td>
-                    <td className="py-2 pr-3 text-emerald-300">
-                      {typeof tx.amount === "number"
-                        ? tx.amount.toFixed(2)
-                        : tx.amount}{" "}
-                      {tx.currency || "USD"}
-                    </td>
-                    <td className="py-2 pr-3 text-slate-200">
-                      {tx.status || "-"}
-                    </td>
-                    <td className="py-2 pr-3 text-slate-400">
-                      {tx.note || "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+        </Card>
+      </section>
     </main>
   );
 }
