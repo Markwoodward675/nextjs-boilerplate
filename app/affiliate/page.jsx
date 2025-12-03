@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Card from "../../components/Card";
-import { getCurrentUser, COLLECTIONS } from "../../lib/api";
-import { databases, DB_ID, QueryHelper } from "../../lib/appwrite";
+import {
+  getCurrentUser,
+  COLLECTIONS
+} from "../../lib/api";
+import {
+  databases,
+  DB_ID,
+  QueryHelper
+} from "../../lib/appwrite";
 
 export default function AffiliatePage() {
   const [state, setState] = useState({
@@ -17,28 +24,26 @@ export default function AffiliatePage() {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      if (!DB_ID) {
-        if (mounted) {
-          setState({
-            loading: false,
-            error: "Appwrite database is not configured.",
-            user: null,
-            affiliate: null,
-            referrals: [],
-            commissions: []
-          });
-        }
-        return;
-      }
 
+    (async () => {
       try {
+        if (!DB_ID) {
+          if (mounted) {
+            setState((s) => ({
+              ...s,
+              loading: false,
+              error: "Appwrite database is not configured."
+            }));
+          }
+          return;
+        }
+
         const user = await getCurrentUser();
         if (!user) {
           if (mounted) {
             setState({
               loading: false,
-              error: "You must be logged in to view affiliate data.",
+              error: "You need to be logged in.",
               user: null,
               affiliate: null,
               referrals: [],
@@ -48,25 +53,31 @@ export default function AffiliatePage() {
           return;
         }
 
-        const [affList, refs, comms] = await Promise.all([
-          databases.listDocuments(
-            DB_ID,
-            COLLECTIONS.affiliateAccounts,
-            [QueryHelper.equal("userId", user.$id)]
-          ),
-          databases.listDocuments(
+        const affList = await databases.listDocuments(
+          DB_ID,
+          COLLECTIONS.affiliateAccounts,
+          [QueryHelper.equal("userId", user.$id)]
+        );
+        const affiliate = affList.total > 0 ? affList.documents[0] : null;
+
+        let referrals = [];
+        let commissions = [];
+
+        if (affiliate) {
+          const refRes = await databases.listDocuments(
             DB_ID,
             COLLECTIONS.affiliateReferrals,
             [QueryHelper.equal("affiliateUserId", user.$id)]
-          ),
-          databases.listDocuments(
+          );
+          referrals = refRes.documents;
+
+          const comRes = await databases.listDocuments(
             DB_ID,
             COLLECTIONS.affiliateCommissions,
             [QueryHelper.equal("affiliateUserId", user.$id)]
-          )
-        ]);
-
-        const affiliate = affList.total > 0 ? affList.documents[0] : null;
+          );
+          commissions = comRes.documents;
+        }
 
         if (mounted) {
           setState({
@@ -74,21 +85,18 @@ export default function AffiliatePage() {
             error: "",
             user,
             affiliate,
-            referrals: refs.documents,
-            commissions: comms.documents
+            referrals,
+            commissions
           });
         }
       } catch (err) {
         console.error(err);
         if (mounted) {
-          setState({
+          setState((s) => ({
+            ...s,
             loading: false,
-            error: "Unable to load affiliate data.",
-            user: null,
-            affiliate: null,
-            referrals: [],
-            commissions: []
-          });
+            error: "Unable to load affiliate data."
+          }));
         }
       }
     })();
@@ -100,6 +108,14 @@ export default function AffiliatePage() {
 
   const { loading, error, user, affiliate, referrals, commissions } = state;
 
+  const totalReferrals = referrals.length;
+  const totalApproved = referrals.filter(
+    (r) => r.status === "approved"
+  ).length;
+  const totalPending = referrals.filter(
+    (r) => r.status === "pending"
+  ).length;
+
   const totalCommission = commissions.reduce(
     (sum, c) => sum + (c.amount || 0),
     0
@@ -107,8 +123,18 @@ export default function AffiliatePage() {
 
   return (
     <main className="space-y-4 pb-10">
+      <Card>
+        <h1 className="text-sm font-semibold text-slate-100">
+          Affiliate center
+        </h1>
+        <p className="mt-1 text-xs text-slate-400">
+          Track referred traders, funded volume, and commissions generated from
+          your Day Trader affiliate links.
+        </p>
+      </Card>
+
       {loading && (
-        <p className="text-xs text-slate-400">Loading affiliate center…</p>
+        <p className="text-xs text-slate-400">Loading affiliate data…</p>
       )}
       {error && (
         <p className="text-xs text-red-400 bg-red-950/40 border border-red-900 rounded-md px-3 py-2">
@@ -116,145 +142,110 @@ export default function AffiliatePage() {
         </p>
       )}
 
-      <Card>
-        <h1 className="text-sm font-semibold text-slate-100">
-          Affiliate center
-        </h1>
-        <p className="mt-1 text-xs text-slate-400">
-          Manage referral codes, track referred traders, and monitor commission
-          performance. Payouts are processed through your configured withdrawal
-          methods.
-        </p>
-      </Card>
-
-      {!user && (
+      {user && !affiliate && !loading && (
         <Card>
-          <p className="text-xs text-slate-400">
-            Log in to see your affiliate dashboard.
-          </p>
-        </Card>
-      )}
-
-      {user && !affiliate && (
-        <Card>
-          <p className="text-xs text-slate-400">
-            You don&apos;t have an affiliate account yet. Use{" "}
-            <span className="underline">Settings &gt; Affiliate center</span> to
-            request or create an affiliate account.
+          <p className="text-xs text-slate-300">
+            You don&apos;t have an affiliate account yet. Go to{" "}
+            <span className="font-semibold text-blue-300">Settings</span> to
+            create your affiliate profile and generate a referral code.
           </p>
         </Card>
       )}
 
       {user && affiliate && (
         <>
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Metrics row */}
+          <section className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <Card>
-              <div className="text-xs text-slate-400">Affiliate code</div>
-              <div className="mt-1 text-sm font-mono text-emerald-400">
-                {affiliate.code}
-              </div>
-              <p className="mt-2 text-[11px] text-slate-500">
-                Share links like{" "}
-                <span className="font-mono">
-                  /auth/register?ref={affiliate.code}
-                </span>{" "}
-                or embed the code in your marketing page URLs.
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                Status
               </p>
-            </Card>
-            <Card>
-              <div className="text-xs text-slate-400">Status & tier</div>
-              <p className="mt-1 text-sm text-slate-100">
-                Status:{" "}
-                <span className="font-semibold">{affiliate.status}</span>
+              <p className="mt-1 text-sm font-semibold text-slate-100">
+                {affiliate.status || "pending"}
               </p>
-              <p className="text-sm text-slate-100">
+              <p className="mt-2 text-[11px] text-slate-400">
                 Tier: <span className="font-semibold">{affiliate.tier}</span>
               </p>
             </Card>
             <Card>
-              <div className="text-xs text-slate-400">
-                Lifetime commission (all currencies)
-              </div>
-              <div className="mt-1 text-2xl font-bold text-blue-300">
-                {totalCommission.toFixed(2)}{" "}
-                <span className="text-xs text-slate-500">units</span>
-              </div>
-              <p className="mt-2 text-[11px] text-slate-500">
-                For detailed currency breakdowns, aggregate by{" "}
-                <span className="font-mono">currency</span> in your analytics
-                logic.
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                Referrals
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-100">
+                {totalReferrals}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {totalApproved} approved · {totalPending} pending
+              </p>
+            </Card>
+            <Card>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                Commission
+              </p>
+              <p className="mt-1 text-sm font-semibold text-emerald-400">
+                {totalCommission.toFixed(2)} USD
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Paid out based on funded volume and plan rules.
+              </p>
+            </Card>
+            <Card>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                Referral code
+              </p>
+              <p className="mt-1 text-sm font-mono text-blue-200">
+                {affiliate.code}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Use links like{" "}
+                <span className="font-mono">
+                  /auth/register?ref={affiliate.code}
+                </span>
               </p>
             </Card>
           </section>
 
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Card>
-              <h2 className="text-sm font-semibold text-slate-100 mb-2">
-                Referred traders
+          {/* Pseudo referral chart */}
+          <section className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <Card className="lg:col-span-2">
+              <h2 className="text-sm font-semibold text-slate-100">
+                Referral activity
               </h2>
-              {referrals.length === 0 && (
-                <p className="text-xs text-slate-500">
-                  No referrals yet. Start sharing your code to see traders here.
-                </p>
-              )}
-              <div className="space-y-1 text-[11px] text-slate-400">
-                {referrals.map((ref) => (
-                  <div
-                    key={ref.$id}
-                    className="flex items-center justify-between border-b border-slate-800/60 last:border-0 py-1"
-                  >
-                    <div>
-                      <div className="font-mono text-slate-300">
-                        {ref.referredUserId}
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        Status: {ref.status}
-                      </div>
+              <p className="mt-1 text-xs text-slate-400">
+                A stylized view of signups and commission events across recent
+                periods. Wire this to your own analytics as volume grows.
+              </p>
+              <div className="mt-4 h-40 chart-grid rounded-xl overflow-hidden flex items-end gap-[3px] px-2 pb-3">
+                {[6, 14, 10, 22, 18, 30, 24, 28, 20, 26, 34, 18].map(
+                  (h, idx) => (
+                    <div
+                      key={idx}
+                      className="flex-1 flex items-end justify-center"
+                    >
+                      <div
+                        className="w-[8px] rounded-full bg-gradient-to-t from-slate-800 via-blue-500/80 to-emerald-400/80"
+                        style={{ height: `${h + 20}px` }}
+                      />
                     </div>
-                    <div className="text-[10px] text-slate-500 text-right">
-                      Joined:{" "}
-                      {ref.signedUpAt
-                        ? new Date(ref.signedUpAt).toLocaleDateString()
-                        : "—"}
-                    </div>
-                  </div>
-                ))}
+                  )
+                )}
               </div>
+              <p className="mt-2 text-[11px] text-slate-500">
+                Use this area to integrate real signup and funded volume data as
+                your affiliate base grows.
+              </p>
             </Card>
 
             <Card>
-              <h2 className="text-sm font-semibold text-slate-100 mb-2">
-                Commission entries
+              <h2 className="text-sm font-semibold text-slate-100">
+                Playbook
               </h2>
-              {commissions.length === 0 && (
-                <p className="text-xs text-slate-500">
-                  No commission records yet. Once you start generating
-                  commissionable activity, it will appear here.
-                </p>
-              )}
-              <div className="space-y-1 text-[11px] text-slate-400">
-                {commissions.map((c) => (
-                  <div
-                    key={c.$id}
-                    className="flex items-center justify-between border-b border-slate-800/60 last:border-0 py-1"
-                  >
-                    <div>
-                      <div className="font-semibold text-slate-200">
-                        {c.amount?.toFixed(2)} {c.currency}
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        Type: {c.type} · Status: {c.status}
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-slate-500 text-right">
-                      From:{" "}
-                      <span className="font-mono">
-                        {c.referredUserId || "—"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <ul className="mt-2 text-[11px] text-slate-400 space-y-2">
+                <li>• Focus on education and process, not hype.</li>
+                <li>• Set expectations around risk and drawdowns up front.</li>
+                <li>• Encourage small, controlled starting allocations.</li>
+                <li>• Treat affiliate revenue as a separate cashflow stream.</li>
+              </ul>
             </Card>
           </section>
         </>
