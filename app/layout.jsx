@@ -3,6 +3,7 @@ import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import FakeNotifications from "../components/FakeNotifications";
 import MobileNav from "../components/MobileNav";
+import TopNav from "../components/TopNav";
 
 export const metadata = {
   title: "Day Trader – Trading, Investments, Wallets, Affiliate",
