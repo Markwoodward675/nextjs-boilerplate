@@ -78,7 +78,7 @@ export default function AlertsPage() {
     setError("");
     setClaimingId(alert.$id);
 
-    try:
+    try {
       const res = await claimSignupBonus(user.$id, alert.$id);
 
       // Update alerts state locally to reflect claimed status
@@ -207,7 +207,9 @@ export default function AlertsPage() {
 
                   <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
                     <span>
-                      Status: {alert.status || (alert.claimed ? "claimed" : "active")}
+                      Status:{" "}
+                      {alert.status ||
+                        (alert.claimed ? "claimed" : "active")}
                     </span>
                     <span>{alert.createdAt || alert.$createdAt}</span>
                   </div>
