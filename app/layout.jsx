@@ -13,8 +13,12 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <head>
+    <html lang="en" className="h-full overflow-x-hidden">
+      <body className="min-h-screen bg-slate-950 text-slate-50 overflow-x-hidden">
+        <div className="app-shell flex min-h-screen w-full flex-col overflow-x-hidden">
+          {/* Global navigation */}
+          <TopNav />
+          <MobileNav />
         {/* make sure mobile viewport is set */}
         <meta
           name="viewport"
@@ -41,12 +45,10 @@ export default function RootLayout({ children }) {
           <Sidebar />
 
           {/* Main content area */}
-          <main className="flex-1 flex flex-col min-h-screen w-full pb-14 md:pb-0">
-            <div className="w-full max-w-6xl mx-auto px-4 md:px-8 py-4 md:py-6">
-              <Topbar />
-              {children}
-            </div>
+          <main className="flex-1 w-full max-w-full overflow-x-hidden">
+            {children}
           </main>
+        </div>
 
           {/* Fake notifications overlay (already used) */}
           <FakeNotifications />
