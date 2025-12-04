@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ... } from "../../lib/api";
+import { getCurrentUser, getUserWallets, getUserTransactions } from "../../lib/api";
 import UnverifiedEmailGate from "../../components/UnverifiedEmailGate";
 
 function useProtectedUser() {
@@ -53,7 +53,9 @@ export default function TradePage() {
         ]);
         if (cancelled) return;
 
-        setTradingWallet((wallets || []).find((w) => w.type === "trading") || null);
+        setTradingWallet(
+          (wallets || []).find((w) => w.type === "trading") || null
+        );
         setTrades(txs || []);
       } catch (err) {
         if (!cancelled) {
