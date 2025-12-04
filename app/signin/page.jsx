@@ -1,16 +1,39 @@
 // app/signin/page.jsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { loginWithEmailPassword } from "../../lib/api";
+import { loginWithEmailPassword, getCurrentUser } from "../../lib/api";
 
 export default function SignInPage() {
   const router = useRouter();
+  const [checkingSession, setCheckingSession] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // If a session already exists, redirect straight to dashboard
+  useEffect(() => {
+    let cancelled = false;
+
+    async function check() {
+      try {
+        const user = await getCurrentUser();
+        if (!cancelled && user) {
+          router.replace("/dashboard");
+          return;
+        }
+      } finally {
+        if (!cancelled) setCheckingSession(false);
+      }
+    }
+
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,6 +52,19 @@ export default function SignInPage() {
       setSubmitting(false);
     }
   };
+
+  // While checking if a session exists, show a simple loader
+  if (checkingSession) {
+    return (
+      <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
+        <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl">
+          <p className="text-sm text-slate-300">
+            Checking your session. Please wait…
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
@@ -94,18 +130,18 @@ export default function SignInPage() {
             disabled={submitting}
             className="mt-2 w-full rounded-xl border border-emerald-500/70 bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-50 hover:bg-emerald-500/30 transition disabled:opacity-60"
           >
-            {submitting ? "Signing in…" : "Sign in"}
+            {submitting ? "Signing in…" : "Sign in with email"}
           </button>
         </form>
 
         <p className="mt-4 text-xs text-slate-500 text-center">
-          Don&apos;t have an account?{" "}
+          Don&apos;t have an account yet?{" "}
           <button
             type="button"
             onClick={() => router.push("/signup")}
             className="text-emerald-300 hover:text-emerald-200 underline underline-offset-4"
           >
-            Create one
+            Create one.
           </button>
         </p>
       </div>
