@@ -3,8 +3,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentUser } from "@/lib/api";
-import UnverifiedEmailGate from "@/components/UnverifiedEmailGate";
+import { getCurrentUser } from "../../../lib/api";
+import UnverifiedEmailGate from "../../../components/UnverifiedEmailGate";
 
 function useProtectedUser() {
   const router = useRouter();
