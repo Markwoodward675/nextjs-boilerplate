@@ -10,9 +10,20 @@ import {
   getAffiliateAccount,
   getAffiliateOverview,
   getUserAlerts,
-  resendVerificationEmail,
-  getErrorMessage,
 } from "../../lib/api";
+import { account } from "../../lib/appwrite";
+
+function getErrorMessage(err, fallback) {
+  if (!err) return fallback;
+  const anyErr = /** @type {any} */ (err);
+  if (anyErr?.message) return anyErr.message;
+  if (anyErr?.response?.message) return anyErr.response.message;
+  try {
+    return JSON.stringify(anyErr);
+  } catch {
+    return fallback;
+  }
+}
 
 function useProtectedUser() {
   const router = useRouter();
@@ -49,18 +60,37 @@ function EmailVerificationBanner({ user }) {
 
   const email = user?.email || "";
 
+  const VERIFIED_REDIRECT_URL =
+    "https://nextjs-boilerplate-psi-three-50.vercel.app/verify";
+
+  async function createVerificationCompat() {
+    const anyAccount = /** @type {any} */ (account);
+
+    if (typeof anyAccount.createVerification === "function") {
+      return anyAccount.createVerification({ url: VERIFIED_REDIRECT_URL });
+    }
+
+    if (typeof anyAccount.createEmailVerification === "function") {
+      return anyAccount.createEmailVerification(VERIFIED_REDIRECT_URL);
+    }
+
+    throw new Error(
+      "This Appwrite SDK version does not support email verification."
+    );
+  }
+
   const handleResend = async () => {
     setSending(true);
     setMessage("");
     setError("");
 
     try {
-      await resendVerificationEmail();
+      await createVerificationCompat();
       setMessage(
         "Verification email sent. Please check your inbox (and spam folder)."
       );
     } catch (err) {
-      console.error("resendVerificationEmail error:", err);
+      console.error("resend verification error:", err);
       setError(
         getErrorMessage(
           err,
@@ -73,8 +103,12 @@ function EmailVerificationBanner({ user }) {
   };
 
   const handleReload = () => {
-    if (typeof window !== "undefined") {
-      window.location.reload();
+    try {
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error("reload error:", err);
     }
   };
 
@@ -243,7 +277,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* You can extend this with charts, recent transactions, alerts summary, etc. */}
+        {/* Extend here with charts / recent activity if you want */}
       </div>
     </main>
   );
