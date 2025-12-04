@@ -1,4 +1,3 @@
-// app/giftcards/sell/page.jsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,21 +8,33 @@ import { getCurrentUser } from "../../../lib/api";
 export default function GiftcardsSellPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
+  const [unverified, setUnverified] = useState(false);
   const [user, setUser] = useState(null);
-  const [brand, setBrand] = useState("Amazon");
-  const [code, setCode] = useState("");
-  const [amount, setAmount] = useState("50");
-  const [message, setMessage] = useState("");
 
+  const [brand, setBrand] = useState("Amazon");
+  const [amount, setAmount] = useState("100");
+  const [code, setCode] = useState("");
+  const [imageName, setImageName] = useState("");
+
+  // Email verification gate
   useEffect(() => {
     let mounted = true;
     (async () => {
       const u = await getCurrentUser();
       if (!mounted) return;
+
       if (!u) {
         router.replace("/auth/login?next=/giftcards/sell");
         return;
       }
+
+      if (!u.emailVerification) {
+        setUser(u);
+        setUnverified(true);
+        setChecking(false);
+        return;
+      }
+
       setUser(u);
       setChecking(false);
     })();
@@ -31,6 +42,15 @@ export default function GiftcardsSellPage() {
       mounted = false;
     };
   }, [router]);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageName(file.name);
+    } else {
+      setImageName("");
+    }
+  };
 
   if (checking) {
     return (
@@ -40,99 +60,125 @@ export default function GiftcardsSellPage() {
     );
   }
 
-  const amt = parseFloat(amount || "0");
-
-  function handlePreview(e) {
-    e.preventDefault();
-    setMessage("");
-
-    if (!code.trim()) {
-      setMessage("Enter a valid gift card code.");
-      return;
-    }
-
-    if (!amt || amt <= 0) {
-      setMessage("Enter a valid gift card value.");
-      return;
-    }
-
-    setMessage(
-      `Submitting ${brand} gift card worth $${amt.toFixed(
-        2
-      )} for review. Admin will verify and credit your wallet if valid.`
+  if (unverified) {
+    return (
+      <main className="px-4 pt-6 pb-24">
+        <Card>
+          <h1 className="text-xs font-semibold text-slate-100">
+            Verify your email to sell gift cards
+          </h1>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Once your email is verified, you&apos;ll be able to submit gift
+            cards for review and payout.
+          </p>
+        </Card>
+      </main>
     );
   }
 
   return (
     <main className="px-4 pt-4 pb-24 space-y-4">
-      <section className="grid gap-3 md:grid-cols-[2fr,3fr]">
+      <section>
+        <div className="text-[11px] text-slate-400 mb-1">
+          Sell gift cards for wallet credit
+        </div>
+        <p className="text-[11px] text-slate-300">
+          Submit unused or spare gift cards to convert them into wallet
+          balance. Admin reviews every card before crediting funds to your main
+          wallet.
+        </p>
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-[3fr,2fr]">
         <Card>
-          <h1 className="text-xs font-semibold text-slate-100">
-            Sell gift cards
-          </h1>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Submit unused gift cards for review. After verification, admin
-            can credit equivalent value into your wallet.
-          </p>
-
-          <form onSubmit={handlePreview} className="mt-3 space-y-2">
-            <div className="text-[11px] text-slate-400">Brand</div>
-            <select
-              value={brand}
-              onChange={(e) => setBrand(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
-            >
-              <option>Amazon</option>
-              <option>PlayStation</option>
-              <option>Steam</option>
-            </select>
-
-            <div className="mt-2 text-[11px] text-slate-400">
-              Card code / number
+          <div className="text-[11px] text-slate-400 mb-2">
+            Card details for review
+          </div>
+          <div className="space-y-2 text-[11px]">
+            <div>
+              <label className="block text-slate-400 mb-0.5">
+                Gift card brand
+              </label>
+              <select
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-100 outline-none"
+              >
+                <option>Amazon</option>
+                <option>Apple</option>
+                <option>Steam</option>
+                <option>Google Play</option>
+                <option>PlayStation</option>
+                <option>Netflix</option>
+                <option>Visa / MasterCard</option>
+              </select>
             </div>
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
-              placeholder="XXXX-XXXX-XXXX"
-            />
 
-            <div className="mt-2 text-[11px] text-slate-400">
-              Face value (USD)
+            <div>
+              <label className="block text-slate-400 mb-0.5">
+                Face value (USD)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-100 outline-none"
+              />
             </div>
-            <input
-              type="number"
-              min="10"
-              step="10"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
-            />
+
+            <div>
+              <label className="block text-slate-400 mb-0.5">
+                PIN / code
+              </label>
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-100 outline-none"
+                placeholder="Enter the full redemption code"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-400 mb-0.5">
+                Card photo (front / back)
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="w-full text-[10px] text-slate-400"
+              />
+              {imageName && (
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Selected: {imageName}
+                </p>
+              )}
+            </div>
 
             <button
-              type="submit"
-              className="mt-3 w-full rounded-full bg-amber-600 px-4 py-2 text-[11px] font-medium text-slate-950 hover:bg-amber-500"
+              type="button"
+              className="mt-2 w-full rounded-full bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-100 font-semibold px-3 py-2"
             >
-              Preview sale request
+              Submit gift card sell request
             </button>
 
-            {message && (
-              <p className="mt-2 text-[11px] text-emerald-300">
-                {message}
-              </p>
-            )}
-          </form>
+            <p className="mt-1 text-[10px] text-slate-500">
+              Admin will validate the card, apply a rate, and credit your main
+              wallet balance. If a card fails validation, it will be marked as
+              rejected in your transaction notes.
+            </p>
+          </div>
         </Card>
 
         <Card>
-          <h2 className="text-xs font-semibold text-slate-100">
-            Transaction preview
-          </h2>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Once admin verifies gift card validity and rate, an entry will be
-            created in Transactions with type GIFTCARD_SELL and wallet
-            credits applied.
+          <div className="text-[11px] text-slate-400 mb-2">
+            Convert unused value into capital
+          </div>
+          <p className="text-[11px] text-slate-300">
+            Instead of letting gift cards sit, roll them into your trading
+            business and put them to work inside a risk-managed plan.
           </p>
         </Card>
       </section>
