@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentUser, getUserWallets, getUserTransactions } from "../../lib/api";
+import { getCurrentUser, getUserInvest } from "../../lib/api";
 import UnverifiedEmailGate from "../../components/UnverifiedEmailGate";
 
 function useProtectedUser() {
