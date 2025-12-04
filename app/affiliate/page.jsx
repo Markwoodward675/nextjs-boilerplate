@@ -5,10 +5,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getCurrentUser,
+  getUserWallets,
+  getUserTransactions,
+  getUserAlerts,
   getAffiliateAccount,
   getAffiliateOverview,
-} from "@/lib/api";
-import UnverifiedEmailGate from "@/components/UnverifiedEmailGate";
+} from "../../lib/api";
+import UnverifiedEmailGate from "../../components/UnverifiedEmailGate";
 
 function useProtectedUser() {
   const router = useRouter();
