@@ -3,125 +3,157 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Card from "../../components/Card";
-import { getCurrentUser, getUserTransactions } from "../../lib/api";
+import { getCurrentUser, getUserTransactions } from "@/lib/api";
+import UnverifiedEmailGate from "@/components/UnverifiedEmailGate";
 
-export default function TransactionsPage() {
+function useProtectedUser() {
   const router = useRouter();
-  const [checking, setChecking] = useState(true);
   const [user, setUser] = useState(null);
-  const [transactions, setTransactions] = useState([]);
-  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const u = await getCurrentUser();
-      if (!mounted) return;
-      if (!u) {
-        router.replace("/auth/login?next=/transactions");
-        return;
-      }
-      setUser(u);
-      setChecking(false);
-
+    let cancelled = false;
+    async function run() {
       try {
-        const tx = await getUserTransactions(u.$id);
-        if (!mounted) return;
-        setTransactions(tx);
-      } catch (err) {
-        console.error(err);
-        setError(String(err.message || err));
+        const u = await getCurrentUser();
+        if (!u) {
+          router.replace("/signin");
+          return;
+        }
+        if (!cancelled) setUser(u);
+      } finally {
+        if (!cancelled) setChecking(false);
       }
-    })();
+    }
+    run();
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, [router]);
 
-  if (checking) {
+  return { user, checking };
+}
+
+export default function TransactionsPage() {
+  const { user, checking } = useProtectedUser();
+  const [transactions, setTransactions] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const txs = await getUserTransactions(user.$id);
+        if (!cancelled) setTransactions(txs || []);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err?.message ||
+              "Unable to load transactions. Please try again shortly."
+          );
+        }
+      } finally {
+        if (!cancelled) setLoadingData(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  if (checking || loadingData) {
     return (
-      <main className="px-4 pt-6 pb-24 text-xs text-slate-400">
-        Checking session…
+      <main className="min-h-[70vh] flex items-center justify-center bg-slate-950">
+        <div className="text-sm text-slate-300">Loading transactions…</div>
       </main>
     );
   }
 
-  return (
-    <main className="px-4 pt-4 pb-24 space-y-3">
-      <Card>
-        <h1 className="text-xs font-semibold text-slate-100">
-          Transactions
-        </h1>
-        <p className="mt-1 text-[11px] text-slate-400">
-          Ledger of deposits, withdrawals, investments, and affiliate
-          commissions tied to your Day Trader account.
-        </p>
-        {error && (
-          <p className="mt-2 text-[10px] text-red-400">
-            Unable to load transactions: {error}
-          </p>
-        )}
-      </Card>
+  if (!user) return null;
 
-      <Card>
-        <div className="overflow-x-auto text-[11px]">
-          <table className="min-w-full text-left">
-            <thead>
-              <tr className="text-slate-400 border-b border-slate-800 text-[10px] uppercase tracking-wide">
-                <th className="py-2 pr-4">Date</th>
-                <th className="py-2 pr-4">Type</th>
-                <th className="py-2 pr-4">Amount</th>
-                <th className="py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.length === 0 && !error && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="py-4 text-slate-500 text-center"
-                  >
-                    No transactions recorded yet.
-                  </td>
-                </tr>
-              )}
-              {transactions.map((tx) => (
-                <tr
+  const emailVerified =
+    user.emailVerification || user?.prefs?.emailVerification;
+  if (!emailVerified) {
+    return <UnverifiedEmailGate email={user.email} />;
+  }
+
+  const sorted = [...transactions].sort(
+    (a, b) =>
+      new Date(b.createdAt || b.$createdAt) -
+      new Date(a.createdAt || a.$createdAt)
+  );
+
+  return (
+    <main className="min-h-[80vh] bg-slate-950 px-4 py-6 text-slate-50">
+      <div className="mx-auto max-w-5xl space-y-4">
+        <header>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Transactions
+          </h1>
+          <p className="text-sm text-slate-400">
+            Full history of deposits, withdrawals, investments, trades, and
+            bonus credits.
+          </p>
+        </header>
+
+        {error && (
+          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
+            {error}
+          </div>
+        )}
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+          {sorted.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              No transactions yet. Once you deposit, invest, or trade, the full
+              history will appear here.
+            </p>
+          ) : (
+            <div className="space-y-2 text-xs">
+              {sorted.map((tx) => (
+                <div
                   key={tx.$id}
-                  className="border-b border-slate-900/80 last:border-b-0"
+                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950 px-3 py-2"
                 >
-                  <td className="py-2 pr-4 text-slate-300">
-                    {new Date(tx.$createdAt).toLocaleString()}
-                  </td>
-                  <td className="py-2 pr-4 text-slate-300 capitalize">
-                    {tx.type?.toLowerCase()}
-                  </td>
-                  <td className="py-2 pr-4 text-slate-300">
-                    {tx.amount?.toFixed
-                      ? tx.amount.toFixed(2)
-                      : tx.amount}{" "}
-                    {tx.currency || "USD"}
-                  </td>
-                  <td className="py-2 text-slate-300">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] ${
-                        tx.status === "completed"
-                          ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/40"
-                          : tx.status === "failed"
-                          ? "bg-red-500/10 text-red-300 border border-red-500/40"
-                          : "bg-slate-700/40 text-slate-200 border border-slate-600/60"
+                  <div>
+                    <p className="font-medium capitalize text-slate-100">
+                      {tx.type} • {tx.status || "completed"}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {tx.createdAt || tx.$createdAt}
+                    </p>
+                    {tx.meta && (
+                      <p className="text-[11px] text-slate-500">{tx.meta}</p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p
+                      className={`text-sm font-semibold ${
+                        tx.type === "withdraw"
+                          ? "text-rose-300"
+                          : "text-emerald-300"
                       }`}
                     >
-                      {tx.status || "pending"}
-                    </span>
-                  </td>
-                </tr>
+                      {tx.type === "withdraw" ? "-" : "+"}$
+                      {Number(tx.amount || 0).toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {tx.currency || "USD"}
+                    </p>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+            </div>
+          )}
+        </section>
+      </div>
     </main>
   );
 }
