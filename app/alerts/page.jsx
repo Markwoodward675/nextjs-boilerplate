@@ -3,7 +3,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ... } from "../../lib/api";
+import {
+  getCurrentUser,
+  getUserAlerts,
+  claimSignupBonus,
+} from "../../lib/api";
 import UnverifiedEmailGate from "../../components/UnverifiedEmailGate";
 
 function useProtectedUser() {
@@ -39,6 +43,8 @@ export default function AlertsPage() {
   const [alerts, setAlerts] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState("");
+  const [claimingId, setClaimingId] = useState(null);
+  const [claimMessage, setClaimMessage] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -65,6 +71,43 @@ export default function AlertsPage() {
       cancelled = true;
     };
   }, [user]);
+
+  const handleClaimBonus = async (alert) => {
+    if (!user) return;
+    setClaimMessage("");
+    setError("");
+    setClaimingId(alert.$id);
+
+    try:
+      const res = await claimSignupBonus(user.$id, alert.$id);
+
+      // Update alerts state locally to reflect claimed status
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.$id === alert.$id
+            ? {
+                ...a,
+                claimed: true,
+                status: "claimed",
+              }
+            : a
+        )
+      );
+
+      setClaimMessage(
+        `Signup bonus claimed successfully. New balance: $${Number(
+          res?.newBalance || 0
+        ).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+      );
+    } catch (err) {
+      setError(
+        err?.message ||
+          "Unable to claim signup bonus. Please ensure you have a completed deposit and a completed investment or trade."
+      );
+    } finally {
+      setClaimingId(null);
+    }
+  };
 
   if (checking || loadingData) {
     return (
@@ -95,13 +138,18 @@ export default function AlertsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Alerts</h1>
           <p className="text-sm text-slate-400">
             Platform notifications, educational tips, and your $100 signup bonus
-            alert all live here.
+            all live here.
           </p>
         </header>
 
         {error && (
           <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
             {error}
+          </div>
+        )}
+        {claimMessage && (
+          <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-200">
+            {claimMessage}
           </div>
         )}
 
@@ -112,24 +160,60 @@ export default function AlertsPage() {
               will appear here.
             </p>
           ) : (
-            sorted.map((alert) => (
-              <div
-                key={alert.$id}
-                className="rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm"
-              >
-                <p className="text-xs uppercase text-slate-400 mb-1">
-                  {alert.category || "general"}
-                </p>
-                <p className="font-medium text-slate-50">{alert.title}</p>
-                {alert.body && (
-                  <p className="mt-1 text-xs text-slate-400">{alert.body}</p>
-                )}
-                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>Status: {alert.status || "active"}</span>
-                  <span>{alert.createdAt || alert.$createdAt}</span>
+            sorted.map((alert) => {
+              const isSignupBonus = alert.category === "signup_bonus";
+              const isClaimed =
+                alert.claimed || alert.status === "claimed";
+
+              return (
+                <div
+                  key={alert.$id}
+                  className="rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase text-slate-400 mb-1">
+                        {alert.category || "general"}
+                      </p>
+                      <p className="font-medium text-slate-50">
+                        {alert.title}
+                      </p>
+                      {alert.body && (
+                        <p className="mt-1 text-xs text-slate-400">
+                          {alert.body}
+                        </p>
+                      )}
+                    </div>
+
+                    {isSignupBonus && !isClaimed && (
+                      <button
+                        type="button"
+                        onClick={() => handleClaimBonus(alert)}
+                        disabled={claimingId === alert.$id}
+                        className="rounded-xl border border-emerald-500/60 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-50 hover:bg-emerald-500/20 transition disabled:opacity-60"
+                      >
+                        {claimingId === alert.$id
+                          ? "Claiming…"
+                          : `Claim $${alert.bonusAmount || 100} bonus`}
+                      </button>
+                    )}
+
+                    {isSignupBonus && isClaimed && (
+                      <span className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-300">
+                        Bonus claimed
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                    <span>
+                      Status: {alert.status || (alert.claimed ? "claimed" : "active")}
+                    </span>
+                    <span>{alert.createdAt || alert.$createdAt}</span>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </section>
       </div>
