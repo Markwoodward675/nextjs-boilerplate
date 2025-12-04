@@ -3,232 +3,171 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Card from "../../components/Card";
-import { getCurrentUser, getUserWallets } from "../../lib/api";
+import { getCurrentUser, getUserWallets, getUserTransactions } from "@/lib/api";
+import UnverifiedEmailGate from "@/components/UnverifiedEmailGate";
 
-const PLANS = [
-  { id: "novice", name: "Novice / Starter", min: 200, max: 999, roi: 3 },
-  { id: "standard", name: "Standard", min: 1000, max: 4999, roi: 5 },
-  { id: "elite", name: "Elite", min: 5000, max: 9999, roi: 7 },
-];
-
-export default function InvestPage() {
+function useProtectedUser() {
   const router = useRouter();
-  const [checking, setChecking] = useState(true);
   const [user, setUser] = useState(null);
-  const [wallets, setWallets] = useState([]);
-  const [selectedPlan, setSelectedPlan] = useState(PLANS[0]);
-  const [amount, setAmount] = useState("200");
-  const [days, setDays] = useState("30");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const u = await getCurrentUser();
-      if (!mounted) return;
-      if (!u) {
-        router.replace("/auth/login?next=/invest");
-        return;
-      }
-      setUser(u);
-      setChecking(false);
-
+    let cancelled = false;
+    async function run() {
       try {
-        const w = await getUserWallets(u.$id);
-        if (!mounted) return;
-        setWallets(w);
-      } catch (err) {
-        console.error(err);
-        setError(String(err.message || err));
+        const u = await getCurrentUser();
+        if (!u) {
+          router.replace("/signin");
+          return;
+        }
+        if (!cancelled) setUser(u);
+      } finally {
+        if (!cancelled) setChecking(false);
       }
-    })();
+    }
+    run();
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, [router]);
 
-  if (checking) {
+  return { user, checking };
+}
+
+export default function InvestPage() {
+  const { user, checking } = useProtectedUser();
+  const [mainWallet, setMainWallet] = useState(null);
+  const [investments, setInvestments] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const [wallets, txs] = await Promise.all([
+          getUserWallets(user.$id),
+          getUserTransactions(user.$id, "invest"),
+        ]);
+        if (cancelled) return;
+
+        setMainWallet((wallets || []).find((w) => w.type === "main") || null);
+        setInvestments(txs || []);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err?.message ||
+              "Unable to load investment data. Please try again shortly."
+          );
+        }
+      } finally {
+        if (!cancelled) setLoadingData(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  if (checking || loadingData) {
     return (
-      <main className="px-4 pt-6 pb-24 text-xs text-slate-400">
-        Checking session…
+      <main className="min-h-[70vh] flex items-center justify-center bg-slate-950">
+        <div className="text-sm text-slate-300">Loading investments…</div>
       </main>
     );
   }
 
-  const main = wallets.find((w) => w.type === "main");
-  const mainBalance = main?.balance || 0;
-  const amt = parseFloat(amount || "0");
-  const d = parseInt(days || "1", 10) || 1;
+  if (!user) return null;
 
-  const totalRoiPercent = selectedPlan.roi; // for the chosen horizon (default 30d)
-  const totalReturn = (amt * totalRoiPercent) / 100;
-  const dailyReturn = totalReturn / d;
-
-  function handlePlanChange(planId) {
-    const p = PLANS.find((pl) => pl.id === planId) || PLANS[0];
-    setSelectedPlan(p);
-    setAmount(String(p.min));
-  }
-
-  function handlePreview(e) {
-    e.preventDefault();
-    setMessage("");
-
-    if (!amt || amt <= 0) {
-      setMessage("Enter a valid allocation amount.");
-      return;
-    }
-
-    if (amt < selectedPlan.min || amt > selectedPlan.max) {
-      setMessage(
-        `Amount must be between $${selectedPlan.min.toFixed(
-          2
-        )} and $${selectedPlan.max.toFixed(2)} for this plan.`
-      );
-      return;
-    }
-
-    if (amt > mainBalance) {
-      setMessage(
-        "Insufficient main wallet balance. Fund your wallet or lower the allocation."
-      );
-      return;
-    }
-
-    setMessage(
-      `Allocating $${amt.toFixed(
-        2
-      )} into ${selectedPlan.name}. Approx daily return: $${dailyReturn.toFixed(
-        2
-      )} over ${d} day(s). Actual credited returns remain admin-controlled.`
-    );
+  const emailVerified =
+    user.emailVerification || user?.prefs?.emailVerification;
+  if (!emailVerified) {
+    return <UnverifiedEmailGate email={user.email} />;
   }
 
   return (
-    <main className="px-4 pt-4 pb-24 space-y-4">
-      <section className="grid gap-3 md:grid-cols-[2fr,3fr]">
-        <Card>
-          <h1 className="text-xs font-semibold text-slate-100">
+    <main className="min-h-[80vh] bg-slate-950 px-4 py-6 text-slate-50">
+      <div className="mx-auto max-w-5xl space-y-4">
+        <header>
+          <h1 className="text-2xl font-semibold tracking-tight">
             Investment plans
           </h1>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Allocate a portion of your main wallet to structured plans with
-            clear ranges and target ROIs. Capital is debited from the main
-            wallet; returns are tracked in an admin-controlled balance.
+          <p className="text-sm text-slate-400">
+            Allocate funds from your main wallet into educational investment
+            simulations and track returns.
           </p>
+        </header>
 
-          <form onSubmit={handlePreview} className="mt-3 space-y-2">
-            <div className="text-[11px] text-slate-400">Select plan</div>
-            <div className="grid grid-cols-3 gap-2 text-[11px]">
-              {PLANS.map((plan) => (
-                <button
-                  key={plan.id}
-                  type="button"
-                  onClick={() => handlePlanChange(plan.id)}
-                  className={`rounded-2xl px-3 py-2 border text-left ${
-                    plan.id === selectedPlan.id
-                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-200"
-                      : "border-slate-700 text-slate-200"
-                  }`}
+        {error && (
+          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
+            {error}
+          </div>
+        )}
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+          <h2 className="text-sm font-medium text-slate-200 mb-1">
+            Available capital
+          </h2>
+          {mainWallet ? (
+            <>
+              <p className="text-2xl font-semibold">
+                $
+                {Number(mainWallet.balance || 0).toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                This is your main wallet balance you can allocate into plans.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-400">
+              Main wallet not found yet – it will be created automatically after
+              signup.
+            </p>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+          <h2 className="text-sm font-medium text-slate-200 mb-2">
+            Investment history
+          </h2>
+          {investments.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              You haven&apos;t started any investment simulations yet. Once you
+              do, each plan will appear here with its status and returns.
+            </p>
+          ) : (
+            <div className="space-y-2 text-xs">
+              {investments.map((inv) => (
+                <div
+                  key={inv.$id}
+                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950 px-3 py-2"
                 >
-                  <div className="font-semibold">{plan.name}</div>
-                  <div className="mt-0.5 text-[10px] text-slate-400">
-                    ${plan.min} – ${plan.max}
+                  <div>
+                    <p className="font-medium text-slate-100">
+                      {inv.meta || "Investment"} • {inv.status || "active"}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {inv.createdAt || inv.$createdAt}
+                    </p>
                   </div>
-                  <div className="mt-0.5 text-[10px]">
-                    Target ROI: {plan.roi}% (total)
-                  </div>
-                </button>
+                  <p className="text-sm font-semibold text-emerald-300">
+                    $
+                    {Number(inv.amount || 0).toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
               ))}
             </div>
-
-            <div className="mt-3 text-[11px] text-slate-400">
-              Amount to allocate (USD)
-            </div>
-            <input
-              type="number"
-              min={selectedPlan.min}
-              max={selectedPlan.max}
-              step="10"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
-            />
-            <p className="mt-1 text-[10px] text-slate-500">
-              Main wallet balance: {mainBalance.toFixed(2)} USD
-            </p>
-
-            <div className="mt-2 text-[11px] text-slate-400">
-              Duration (days)
-            </div>
-            <input
-              type="number"
-              min="1"
-              max="60"
-              step="1"
-              value={days}
-              onChange={(e) => setDays(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
-            />
-
-            <div className="mt-2 rounded-xl bg-slate-900/80 border border-slate-700/80 px-3 py-2 text-[11px] text-slate-300">
-              <div>
-                Est. total return:{" "}
-                <span className="font-semibold">
-                  ${isNaN(totalReturn) ? "0.00" : totalReturn.toFixed(2)}
-                </span>
-              </div>
-              <div className="mt-0.5 text-[10px] text-slate-400">
-                Approx ROI per day:{" "}
-                <span className="font-semibold">
-                  $
-                  {isNaN(dailyReturn)
-                    ? "0.00"
-                    : dailyReturn.toFixed(2)}
-                </span>{" "}
-                ({(totalRoiPercent / d).toFixed(3)}% / day)
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="mt-3 w-full rounded-full bg-emerald-600 px-4 py-2 text-[11px] font-medium text-white hover:bg-emerald-500"
-            >
-              Preview allocation
-            </button>
-
-            {message && (
-              <p className="mt-2 text-[11px] text-emerald-300">
-                {message}
-              </p>
-            )}
-            {error && (
-              <p className="mt-2 text-[10px] text-red-400">
-                Unable to load wallet: {error}
-              </p>
-            )}
-          </form>
-        </Card>
-
-        <Card>
-          <h2 className="text-xs font-semibold text-slate-100">
-            How returns are handled
-          </h2>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Day Trader treats investment returns as an admin-controlled
-            stream. That means you can calculate and preview expected
-            outcomes, but final credited returns and timing are manually
-            managed by the admin team.
-          </p>
-          <p className="mt-2 text-[11px] text-slate-400">
-            Once live crediting is connected, returns can be moved into your
-            main or trading wallets and shown as a separate &quot;investment
-            returns&quot; balance.
-          </p>
-        </Card>
-      </section>
+          )}
+        </section>
+      </div>
     </main>
   );
 }
