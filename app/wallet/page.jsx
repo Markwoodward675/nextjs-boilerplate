@@ -4,14 +4,21 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Card from "../../components/Card";
-import { getCurrentUser, getUserWallets } from "../../lib/api";
+import {
+  getCurrentUser,
+  getUserWallets,
+  getUserTransactions,
+} from "../../lib/api";
 
 export default function WalletPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
+  const [unverified, setUnverified] = useState(false);
   const [user, setUser] = useState(null);
   const [wallets, setWallets] = useState([]);
-  const [error, setError] = useState("");
+  const [walletError, setWalletError] = useState("");
+  const [transactions, setTransactions] = useState([]);
+  const [transactionsError, setTransactionsError] = useState("");
   const [avatarSrc, setAvatarSrc] = useState("");
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
 
@@ -27,10 +34,19 @@ export default function WalletPage() {
     (async () => {
       const u = await getCurrentUser();
       if (!mounted) return;
+
       if (!u) {
         router.replace("/auth/login?next=/wallet");
         return;
       }
+
+      if (!u.emailVerification) {
+        setUser(u);
+        setUnverified(true);
+        setChecking(false);
+        return;
+      }
+
       setUser(u);
       setChecking(false);
 
@@ -40,7 +56,16 @@ export default function WalletPage() {
         setWallets(w);
       } catch (err) {
         console.error(err);
-        setError(String(err.message || err));
+        setWalletError(String(err.message || err));
+      }
+
+      try {
+        const tx = await getUserTransactions(u.$id);
+        if (!mounted) return;
+        setTransactions(tx);
+      } catch (err) {
+        console.error(err);
+        setTransactionsError(String(err.message || err));
       }
     })();
     return () => {
@@ -56,10 +81,25 @@ export default function WalletPage() {
     );
   }
 
+  if (unverified) {
+    return (
+      <main className="px-4 pt-6 pb-24">
+        <Card>
+          <h1 className="text-xs font-semibold text-slate-100">
+            Verify your email to access wallets
+          </h1>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Once your email is verified you&apos;ll be able to see and manage
+            your Day Trader wallets.
+          </p>
+        </Card>
+      </main>
+    );
+  }
+
   const main = wallets.find((w) => w.type === "main");
   const trading = wallets.find((w) => w.type === "trading");
   const affiliate = wallets.find((w) => w.type === "affiliate");
-
   const avatarInitials =
     user?.name
       ?.split(" ")
@@ -69,25 +109,24 @@ export default function WalletPage() {
 
   return (
     <main className="px-4 pt-4 pb-24 space-y-4">
-      {/* Card-style wallet header */}
       <section>
         <div className="text-[11px] text-slate-400 mb-2">
-          Wallet overview
+          Wallets & balances
         </div>
-        <div className="relative rounded-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-slate-700/80 px-4 py-4 shadow-lg overflow-hidden">
-          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full border border-emerald-500/40 opacity-40" />
-          <div className="absolute -left-10 bottom-0 h-24 w-24 rounded-full border border-blue-500/40 opacity-30" />
+        <div className="relative rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border border-slate-700/80 px-4 py-4 shadow-xl overflow-hidden">
+          <div className="absolute -left-12 top-0 h-32 w-32 rounded-full border border-emerald-500/40 opacity-30" />
+          <div className="absolute right-0 bottom-0 h-24 w-24 rounded-full border border-blue-500/40 opacity-30" />
 
           <div className="relative flex items-center justify-between gap-3">
             <div>
               <div className="text-[10px] text-slate-400 uppercase tracking-[0.12em]">
-                Day Trader · Multi-wallet
+                Day Trader · Wallet
               </div>
-              <div className="mt-2 text-lg font-semibold text-slate-50">
+              <div className="mt-2 text-xl font-semibold text-slate-50">
                 {main ? (main.balance || 0).toFixed(2) : "0.00"} USD
               </div>
               <p className="mt-1 text-[11px] text-slate-400">
-                Main wallet balance · tap into Trade & Invest to allocate.
+                Main wallet balance · deposits, payouts, and gift cards.
               </p>
             </div>
             <button
@@ -138,32 +177,58 @@ export default function WalletPage() {
             </div>
           </div>
         </div>
-        {error && (
+        {walletError && (
           <p className="mt-2 text-[10px] text-red-400">
-            Unable to load wallets: {error}
+            Unable to load wallets: {walletError}
           </p>
         )}
       </section>
 
-      {/* Allocation explanation */}
-      <section className="grid gap-3 md:grid-cols-2">
+      {/* Recent transactions under card */}
+      <section>
         <Card>
-          <h2 className="text-xs font-semibold text-slate-100">
-            Allocation discipline
-          </h2>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Keep risk capital, affiliate earnings, and investment returns
-            compartmentalized so each stream has a specific role.
-          </p>
-        </Card>
-        <Card>
-          <h2 className="text-xs font-semibold text-slate-100">
-            Withdrawals & payouts
-          </h2>
-          <p className="mt-1 text-[11px] text-slate-400">
-            When you&apos;re ready to pay yourself, use Withdraw with a clear
-            cadence instead of reacting emotionally to P&amp;L swings.
-          </p>
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] text-slate-400">
+              Recent transactions
+            </div>
+            <button
+              onClick={() => router.push("/transactions")}
+              className="text-[11px] text-blue-400 hover:text-blue-300"
+            >
+              View all
+            </button>
+          </div>
+          {transactionsError && (
+            <p className="mt-2 text-[10px] text-red-400">
+              Unable to load transactions: {transactionsError}
+            </p>
+          )}
+          <ul className="mt-2 space-y-1.5 text-[11px] text-slate-300">
+            {transactions.length === 0 && !transactionsError && (
+              <li className="text-slate-500">
+                No transactions recorded yet.
+              </li>
+            )}
+            {transactions.slice(0, 6).map((tx) => (
+              <li
+                key={tx.$id}
+                className="flex items-center justify-between border-b border-slate-900/70 pb-1 last:border-b-0 last:pb-0"
+              >
+                <span className="capitalize">
+                  {tx.type?.toLowerCase()} ·{" "}
+                  <span className="text-slate-500 text-[10px]">
+                    {new Date(tx.$createdAt).toLocaleString()}
+                  </span>
+                </span>
+                <span className="font-medium">
+                  {tx.amount?.toFixed
+                    ? tx.amount.toFixed(2)
+                    : tx.amount}{" "}
+                  {tx.currency || "USD"}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Card>
       </section>
 
