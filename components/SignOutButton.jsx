@@ -5,42 +5,61 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { logoutUser } from "../lib/api";
 
-export default function SignOutButton({ variant = "link" }) {
+/**
+ * A reusable sign-out button that logs the user out
+ * and sends them back to /signin so they can switch accounts.
+ *
+ * Props:
+ * - variant: "button" | "link" (default "button")
+ * - className: extra CSS classes
+ * - children: optional custom label
+ */
+export default function SignOutButton({
+  variant = "button",
+  className = "",
+  children,
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  async function handleSignOut() {
+  const handleSignOut = async () => {
     if (loading) return;
     setLoading(true);
     try {
       await logoutUser();
     } catch (err) {
-      console.error("Logout error:", err);
+      console.error("Sign out error:", err);
+      // best-effort, still continue to /signin
     } finally {
       setLoading(false);
-      router.replace("/auth/login");
+      router.replace("/signin");
     }
-  }
+  };
 
-  if (variant === "button") {
+  const label = loading ? "Signing out…" : children || "Sign out & switch";
+
+  if (variant === "link") {
     return (
       <button
+        type="button"
         onClick={handleSignOut}
         disabled={loading}
-        className="inline-flex items-center gap-1 rounded-full border border-slate-700 px-3 py-1.5 text-[11px] text-slate-200 hover:border-red-400 hover:text-red-300 disabled:opacity-60"
+        className={`text-xs text-slate-300 hover:text-rose-300 underline underline-offset-4 disabled:opacity-60 ${className}`}
       >
-        ⎋ {loading ? "Signing out…" : "Sign out"}
+        {label}
       </button>
     );
   }
 
+  // default: button
   return (
     <button
+      type="button"
       onClick={handleSignOut}
       disabled={loading}
-      className="text-[11px] text-slate-400 hover:text-red-300 disabled:opacity-60"
+      className={`rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-800 transition disabled:opacity-60 ${className}`}
     >
-      {loading ? "Signing out…" : "Sign out"}
+      {label}
     </button>
   );
 }
