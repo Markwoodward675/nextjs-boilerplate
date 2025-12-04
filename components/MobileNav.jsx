@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import SignOutButton from "../components/SignOutButton";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home" },
@@ -41,5 +42,8 @@ export default function MobileNav() {
         );
       })}
     </nav>
+    <li>
+  <SignOutButton variant="link" />
+</li>
   );
 }
