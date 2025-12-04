@@ -3,185 +3,137 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Card from "../../components/Card";
-import { getCurrentUser, getUserWallets } from "../../lib/api";
+import { getCurrentUser, getUserWallets } from "@/lib/api";
+import UnverifiedEmailGate from "@/components/UnverifiedEmailGate";
 
-export default function WithdrawPage() {
+function useProtectedUser() {
   const router = useRouter();
-  const [checking, setChecking] = useState(true);
   const [user, setUser] = useState(null);
-  const [wallets, setWallets] = useState([]);
-  const [method, setMethod] = useState("bank");
-  const [amount, setAmount] = useState("50");
-  const [notes, setNotes] = useState("");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const u = await getCurrentUser();
-      if (!mounted) return;
-      if (!u) {
-        router.replace("/auth/login?next=/withdraw");
-        return;
-      }
-      setUser(u);
-      setChecking(false);
-
+    let cancelled = false;
+    async function run() {
       try {
-        const w = await getUserWallets(u.$id);
-        if (!mounted) return;
-        setWallets(w);
-      } catch (err) {
-        console.error(err);
-        setError(String(err.message || err));
+        const u = await getCurrentUser();
+        if (!u) {
+          router.replace("/signin");
+          return;
+        }
+        if (!cancelled) setUser(u);
+      } finally {
+        if (!cancelled) setChecking(false);
       }
-    })();
+    }
+    run();
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, [router]);
 
-  if (checking) {
+  return { user, checking };
+}
+
+export default function WithdrawPage() {
+  const { user, checking } = useProtectedUser();
+  const [mainWallet, setMainWallet] = useState(null);
+  const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const wallets = await getUserWallets(user.$id);
+        if (!cancelled) {
+          setMainWallet((wallets || []).find((w) => w.type === "main") || null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err?.message ||
+              "Unable to load wallet balances. Please try again shortly."
+          );
+        }
+      } finally {
+        if (!cancelled) setLoadingData(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  if (checking || loadingData) {
     return (
-      <main className="px-4 pt-6 pb-24 text-xs text-slate-400">
-        Checking session…
+      <main className="min-h-[70vh] flex items-center justify-center bg-slate-950">
+        <div className="text-sm text-slate-300">Preparing withdrawal…</div>
       </main>
     );
   }
 
-  const main = wallets.find((w) => w.type === "main");
-  const mainBalance = main?.balance || 0;
-  const amt = parseFloat(amount || "0");
+  if (!user) return null;
 
-  function handlePreview(e) {
-    e.preventDefault();
-    setMessage("");
-
-    if (!amt || amt <= 0) {
-      setMessage("Enter a valid withdrawal amount.");
-      return;
-    }
-
-    if (amt > mainBalance) {
-      setMessage(
-        "Insufficient main wallet balance for this withdrawal request."
-      );
-      return;
-    }
-
-    setMessage(
-      `Requesting ${method === "bank" ? "bank" : "crypto"} withdrawal of $${amt.toFixed(
-        2
-      )}. Admin will review and process payouts according to your plan.`
-    );
+  const emailVerified =
+    user.emailVerification || user?.prefs?.emailVerification;
+  if (!emailVerified) {
+    return <UnverifiedEmailGate email={user.email} />;
   }
 
   return (
-    <main className="px-4 pt-4 pb-24 space-y-4">
-      <section className="grid gap-3 md:grid-cols-[2fr,3fr]">
-        <Card>
-          <h1 className="text-xs font-semibold text-slate-100">
-            Withdraw funds
-          </h1>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Move capital out of Day Trader wallets to your own bank,
-            exchange, or stablecoin addresses as part of a structured risk
-            and payout plan.
+    <main className="min-h-[80vh] bg-slate-950 px-4 py-6 text-slate-50">
+      <div className="mx-auto max-w-3xl space-y-4">
+        <header>
+          <h1 className="text-2xl font-semibold tracking-tight">Withdraw</h1>
+          <p className="text-sm text-slate-400">
+            Move funds out of your educational wallet to simulate cashing out.
           </p>
+        </header>
 
-          <form onSubmit={handlePreview} className="mt-3 space-y-2">
-            <div className="text-[11px] text-slate-400">
-              Withdrawal method
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setMethod("bank")}
-                className={`rounded-full px-3 py-2 border ${
-                  method === "bank"
-                    ? "border-emerald-500 bg-emerald-500/10 text-emerald-200"
-                    : "border-slate-700 text-slate-200"
-                }`}
-              >
-                Bank / Fiat
-              </button>
-              <button
-                type="button"
-                onClick={() => setMethod("crypto")}
-                className={`rounded-full px-3 py-2 border ${
-                  method === "crypto"
-                    ? "border-blue-500 bg-blue-500/10 text-blue-200"
-                    : "border-slate-700 text-slate-200"
-                }`}
-              >
-                Crypto / Stablecoin
-              </button>
-            </div>
+        {error && (
+          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
+            {error}
+          </div>
+        )}
 
-            <div className="mt-2 text-[11px] text-slate-400">
-              Amount (USD)
-            </div>
-            <input
-              type="number"
-              min="0"
-              step="10"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
-            />
-            <p className="mt-1 text-[10px] text-slate-500">
-              Main wallet balance: {mainBalance.toFixed(2)} USD
-            </p>
-
-            <div className="mt-2 text-[11px] text-slate-400">
-              Notes for admin (optional)
-            </div>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500 resize-none"
-              placeholder="Payout preference, account reference, or any detail that helps review."
-            />
-
-            <button
-              type="submit"
-              className="mt-3 w-full rounded-full bg-red-600 px-4 py-2 text-[11px] font-medium text-white hover:bg-red-500"
-            >
-              Preview withdrawal request
-            </button>
-
-            {message && (
-              <p className="mt-2 text-[11px] text-emerald-300">
-                {message}
-              </p>
-            )}
-            {error && (
-              <p className="mt-2 text-[10px] text-red-400">
-                Unable to load wallets: {error}
-              </p>
-            )}
-          </form>
-        </Card>
-
-        <Card>
-          <h2 className="text-xs font-semibold text-slate-100">
-            Withdrawal cadence
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+          <h2 className="text-sm font-medium text-slate-200 mb-1">
+            Available balance (main wallet)
           </h2>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Decide in advance how often you pay yourself—weekly, biweekly, or
-            monthly—and how much of your profits get pulled out versus left
-            in the system.
+          {mainWallet ? (
+            <p className="text-2xl font-semibold">
+              $
+              {Number(mainWallet.balance || 0).toLocaleString(undefined, {
+                maximumFractionDigits: 2,
+              })}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-400">
+              Main wallet not found yet – it will be created automatically after
+              signup.
+            </p>
+          )}
+          <p className="text-[11px] text-slate-500 mt-2">
+            For educational purposes only — these withdrawals do not connect to
+            a real bank or broker.
           </p>
-          <p className="mt-2 text-[11px] text-slate-400">
-            Use withdrawals to reward discipline, not only big wins. Lock in
-            positive months instead of giving them back during emotional
-            overtrading.
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+          <h2 className="text-sm font-medium text-slate-200 mb-2">
+            Withdrawal request form
+          </h2>
+          <p className="text-sm text-slate-400 mb-3">
+            Replace this placeholder with your withdrawal logic (manual review,
+            NOWPayments, or any simulated payout workflow).
           </p>
-        </Card>
-      </section>
+          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950 text-xs text-slate-500">
+            Withdrawal form / workflow goes here.
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
