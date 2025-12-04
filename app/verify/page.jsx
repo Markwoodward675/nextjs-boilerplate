@@ -1,9 +1,12 @@
 // app/verify/page.jsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { account } from "../../lib/appwrite";
+
+// Optional: avoid static prerender headaches for this page
+export const dynamic = "force-dynamic";
 
 function getErrorMessage(err, fallback) {
   if (!err) return fallback;
@@ -35,7 +38,7 @@ async function updateVerificationCompat(userId, secret) {
   );
 }
 
-export default function VerifyPage() {
+function VerifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState("verifying"); // "verifying" | "success" | "error"
@@ -63,7 +66,7 @@ export default function VerifyPage() {
           "Your email has been verified successfully. You can now access your Day Trader dashboard."
         );
 
-        // Optional: redirect to dashboard after a short delay
+        // Redirect to dashboard after a short delay
         setTimeout(() => {
           if (!cancelled) {
             router.replace("/dashboard");
@@ -75,7 +78,7 @@ export default function VerifyPage() {
         setMessage(
           getErrorMessage(
             err,
-            "This verification link is invalid or has already been used."
+            "This verification link is invalid, expired, or has already been used."
           )
         );
       }
@@ -138,5 +141,27 @@ export default function VerifyPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function VerifyPage() {
+  // Wrap the hook-using content in Suspense to satisfy Next.js requirement
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-[80vh] bg-slate-950 flex items-center justify-center px-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
+            <h1 className="text-xl font-semibold text-slate-50 mb-2">
+              Email verification
+            </h1>
+            <p className="text-sm text-slate-300">
+              We&apos;re preparing your verification page…
+            </p>
+          </div>
+        </main>
+      }
+    >
+      <VerifyContent />
+    </Suspense>
   );
 }
