@@ -1,72 +1,69 @@
-// app/settings/page.jsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Card from "../../components/Card";
-import { getCurrentUser, COLLECTIONS } from "../../lib/api";
-import { databases, DB_ID } from "../../lib/appwrite";
+import { getCurrentUser } from "../../lib/api";
 
 export default function SettingsPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
+  const [unverified, setUnverified] = useState(false);
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  // editable fields
   const [displayName, setDisplayName] = useState("");
   const [phone, setPhone] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
   const [address, setAddress] = useState("");
   const [country, setCountry] = useState("");
+  const [avatarFileName, setAvatarFileName] = useState("");
+
   const [kycStatus, setKycStatus] = useState("not_submitted");
+  const [saving, setSaving] = useState(false);
 
-  // avatar
-  const [avatarSrc, setAvatarSrc] = useState("");
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = window.localStorage.getItem("dt_avatar");
-      if (stored) setAvatarSrc(stored);
-    }
-  }, []);
-
+  // Email verification gate
   useEffect(() => {
     let mounted = true;
     (async () => {
       const u = await getCurrentUser();
       if (!mounted) return;
+
       if (!u) {
         router.replace("/auth/login?next=/settings");
         return;
       }
+
+      if (!u.emailVerification) {
+        setUser(u);
+        setUnverified(true);
+        setChecking(false);
+        return;
+      }
+
       setUser(u);
+      setChecking(false);
 
-      try {
-        if (!DB_ID) throw new Error("Database not configured.");
-        const res = await databases.listDocuments(
-          DB_ID,
-          COLLECTIONS.userProfiles,
-          [/* by userId */]
-        );
-        // Filter manually since we didn't pass query to keep compatibility
-        const doc =
-          res.documents.find((d) => d.userId === u.$id) || null;
-        setProfile(doc);
+      // Load basic settings from localStorage for now
+      if (typeof window !== "undefined") {
+        const profile = window.localStorage.getItem("dt_profile");
+        if (profile) {
+          try {
+            const parsed = JSON.parse(profile);
+            setDisplayName(parsed.displayName || u.name || "");
+            setPhone(parsed.phone || "");
+            setAddress(parsed.address || "");
+            setCountry(parsed.country || "");
+            setKycStatus(parsed.kycStatus || "not_submitted");
+          } catch {
+            setDisplayName(u.name || "");
+          }
+        } else {
+          setDisplayName(u.name || "");
+        }
 
-        setDisplayName(doc?.displayName || u.name || "");
-        setPhone(doc?.phone || "");
-        setContactEmail(doc?.email || u.email || "");
-        setAddress(doc?.address || "");
-        setCountry(doc?.country || "");
-        setKycStatus(doc?.kycStatus || "not_submitted");
-      } catch (err) {
-        console.error(err);
-        setError(String(err.message || err));
-      } finally {
-        if (mounted) setChecking(false);
+        const storedAvatar = window.localStorage.getItem("dt_avatar");
+        if (storedAvatar) {
+          setAvatarFileName("Uploaded");
+        }
       }
     })();
     return () => {
@@ -74,47 +71,55 @@ export default function SettingsPage() {
     };
   }, [router]);
 
-  async function handleSaveProfile(e) {
-    e.preventDefault();
-    if (!profile || !DB_ID) return;
-    setSaving(true);
-    setError("");
-
-    try {
-      await databases.updateDocument(
-        DB_ID,
-        COLLECTIONS.userProfiles,
-        profile.$id,
-        {
-          displayName,
-          phone,
-          email: contactEmail,
-          address,
-          // country intentionally NOT changed here – admin only
-        }
-      );
-    } catch (err) {
-      console.error(err);
-      setError(String(err.message || err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function handleAvatarChange(e) {
+  const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUrl = reader.result;
-      setAvatarSrc(dataUrl);
       if (typeof window !== "undefined") {
-        window.localStorage.setItem("dt_avatar", dataUrl);
+        window.localStorage.setItem("dt_avatar", reader.result);
+        setAvatarFileName(file.name);
       }
     };
     reader.readAsDataURL(file);
-  }
+  };
+
+  const handleSaveSettings = () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      if (typeof window !== "undefined") {
+        const profile = {
+          displayName,
+          phone,
+          address,
+          country,
+          kycStatus,
+        };
+        window.localStorage.setItem("dt_profile", JSON.stringify(profile));
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSubmitKyc = () => {
+    setKycStatus("pending");
+    if (typeof window !== "undefined") {
+      const profile = window.localStorage.getItem("dt_profile");
+      let parsed = {};
+      if (profile) {
+        try {
+          parsed = JSON.parse(profile);
+        } catch {
+          parsed = {};
+        }
+      }
+      const updated = { ...parsed, kycStatus: "pending" };
+      window.localStorage.setItem("dt_profile", JSON.stringify(updated));
+    }
+  };
 
   if (checking) {
     return (
@@ -124,206 +129,179 @@ export default function SettingsPage() {
     );
   }
 
-  return (
-    <main className="px-4 pt-4 pb-24 space-y-3">
-      <Card>
-        <h1 className="text-xs font-semibold text-slate-100">
-          Account settings
-        </h1>
-        <p className="mt-1 text-[11px] text-slate-400">
-          Manage your Day Trader profile, avatar, KYC information, and
-          affiliate configuration.
-        </p>
-        {error && (
-          <p className="mt-2 text-[10px] text-red-400">
-            Unable to load settings: {error}
-          </p>
-        )}
-      </Card>
-
-      {/* Profile & avatar */}
-      <section className="grid gap-3 md:grid-cols-[2fr,3fr]">
+  if (unverified) {
+    return (
+      <main className="px-4 pt-6 pb-24">
         <Card>
-          <h2 className="text-xs font-semibold text-slate-100">
-            Profile & avatar
-          </h2>
+          <h1 className="text-xs font-semibold text-slate-100">
+            Verify your email to manage settings
+          </h1>
           <p className="mt-1 text-[11px] text-slate-400">
-            Upload a profile picture. It appears as a round avatar on wallet
-            cards and can be expanded in a modal.
-          </p>
-
-          <div className="mt-3 flex items-center gap-3">
-            <div className="h-16 w-16 rounded-full border border-slate-600 bg-slate-900 overflow-hidden flex items-center justify-center text-sm font-semibold text-slate-100">
-              {avatarSrc ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={avatarSrc}
-                  alt="Avatar"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                (user?.name || "Trader")
-                  .split(" ")
-                  .map((p) => p[0])
-                  .join("")
-                  .toUpperCase()
-              )}
-            </div>
-            <label className="text-[11px] text-slate-300 cursor-pointer">
-              <span className="rounded-full bg-slate-800 px-3 py-1.5 inline-block hover:bg-slate-700">
-                Upload profile image
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarChange}
-                className="hidden"
-              />
-            </label>
-          </div>
-          <p className="mt-2 text-[10px] text-slate-500">
-            Image is stored locally in your browser for now and previewed in
-            wallet cards. You can later connect this to Appwrite Storage for
-            persistent avatars.
+            Once your email is verified, you&apos;ll be able to customize your
+            Day Trader profile and KYC information.
           </p>
         </Card>
+      </main>
+    );
+  }
 
+  return (
+    <main className="px-4 pt-4 pb-24 space-y-4">
+      <section>
+        <div className="text-[11px] text-slate-400 mb-1">
+          Account settings
+        </div>
+        <p className="text-[11px] text-slate-300">
+          Update your profile details, avatar, and KYC information. Your email
+          remains the primary login identifier.
+        </p>
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-[3fr,2fr]">
         <Card>
-          <form onSubmit={handleSaveProfile} className="space-y-2 text-[11px]">
+          <div className="text-[11px] text-slate-400 mb-2">
+            Profile & contact
+          </div>
+          <div className="space-y-2 text-[11px]">
             <div>
-              <label className="block text-slate-400 mb-1">
-                Name
+              <label className="block text-slate-400 mb-0.5">
+                Display name
               </label>
               <input
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
+                className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-100 outline-none"
               />
             </div>
             <div>
-              <label className="block text-slate-400 mb-1">
+              <label className="block text-slate-400 mb-0.5">
+                Email (login)
+              </label>
+              <input
+                type="email"
+                value={user?.email || ""}
+                disabled
+                className="w-full rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-400 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-400 mb-0.5">
                 Phone number
               </label>
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
+                className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-100 outline-none"
               />
             </div>
             <div>
-              <label className="block text-slate-400 mb-1">
-                Email (contact)
-              </label>
-              <input
-                type="email"
-                value={contactEmail}
-                onChange={(e) => setContactEmail(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
-              />
-              <p className="mt-1 text-[10px] text-slate-500">
-                Login email remains managed by Appwrite. Contact admin if you
-                need to change sign-in credentials.
-              </p>
-            </div>
-            <div>
-              <label className="block text-slate-400 mb-1">
+              <label className="block text-slate-400 mb-0.5">
                 Address
               </label>
               <textarea
+                rows={2}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                rows={2}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500 resize-none"
+                className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-100 outline-none resize-none"
               />
             </div>
             <div>
-              <label className="block text-slate-400 mb-1">
-                Country (locked)
+              <label className="block text-slate-400 mb-0.5">
+                Country (detected at signup)
               </label>
               <input
                 type="text"
-                value={country || "Detected at signup (admin locked)"}
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
                 disabled
-                className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-400"
+                className="w-full rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-400 outline-none"
               />
               <p className="mt-1 text-[10px] text-slate-500">
-                Country is detected at account creation (IP-based) and can
-                only be changed by admin.
+                Country is fixed to what was detected when your account was
+                created. Admin can update this in special cases.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-slate-400 mb-0.5">
+                Profile picture
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="w-full text-[10px] text-slate-400"
+              />
+              {avatarFileName && (
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Selected: {avatarFileName}
+                </p>
+              )}
+              <p className="mt-1 text-[10px] text-slate-500">
+                Image is stored locally in your browser for now and previewed on
+                wallet cards. You can later connect this to Appwrite Storage for
+                persistent avatars.
               </p>
             </div>
 
             <button
-              type="submit"
+              type="button"
+              onClick={handleSaveSettings}
               disabled={saving}
-              className="mt-3 w-full rounded-full bg-blue-600 px-4 py-2 text-[11px] font-medium text-white hover:bg-blue-500 disabled:opacity-60"
+              className="mt-2 w-full rounded-full bg-emerald-500/90 hover:bg-emerald-400 text-[11px] text-slate-950 font-semibold px-3 py-2 disabled:opacity-60"
             >
-              {saving ? "Saving…" : "Save profile"}
+              {saving ? "Saving…" : "Save settings"}
             </button>
-          </form>
+          </div>
         </Card>
-      </section>
 
-      {/* KYC block */}
-      <section className="grid gap-3 md:grid-cols-2">
         <Card>
-          <h2 className="text-xs font-semibold text-slate-100">
+          <div className="text-[11px] text-slate-400 mb-2">
             KYC verification
-          </h2>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Submit identity documents and a selfie for manual review. Status
-            will show as pending, approved, or rejected once processed by
-            admin.
+          </div>
+          <p className="text-[11px] text-slate-300">
+            Upload identity documents so admin can review and approve your KYC
+            profile. This may be required for higher limits and payouts.
           </p>
-          <p className="mt-2 text-[11px] text-slate-300">
-            Current status:{" "}
-            <span className="font-semibold capitalize">
-              {kycStatus.replace("_", " ")}
-            </span>
-          </p>
-        </Card>
-        <Card>
-          <div className="grid gap-2 text-[11px]">
+
+          <div className="mt-2 text-[11px] space-y-2">
             <div>
-              <label className="block text-slate-400 mb-1">
-                ID front
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                className="w-full text-[11px] text-slate-300"
-              />
+              <span className="text-slate-400">Current status: </span>
+              <span className="font-semibold capitalize">
+                {kycStatus.replace("_", " ")}
+              </span>
             </div>
             <div>
-              <label className="block text-slate-400 mb-1">
-                ID back
+              <label className="block text-slate-400 mb-0.5">
+                ID front image
               </label>
-              <input
-                type="file"
-                accept="image/*"
-                className="w-full text-[11px] text-slate-300"
-              />
+              <input type="file" accept="image/*" className="w-full text-[10px] text-slate-400" />
             </div>
             <div>
-              <label className="block text-slate-400 mb-1">
+              <label className="block text-slate-400 mb-0.5">
+                ID back image
+              </label>
+              <input type="file" accept="image/*" className="w-full text-[10px] text-slate-400" />
+            </div>
+            <div>
+              <label className="block text-slate-400 mb-0.5">
                 Selfie with ID
               </label>
-              <input
-                type="file"
-                accept="image/*"
-                className="w-full text-[11px] text-slate-300"
-              />
+              <input type="file" accept="image/*" className="w-full text-[10px] text-slate-400" />
             </div>
+
             <button
               type="button"
-              className="mt-2 w-full rounded-full bg-emerald-600 px-4 py-2 text-[11px] font-medium text-white hover:bg-emerald-500"
+              onClick={handleSubmitKyc}
+              className="mt-2 w-full rounded-full bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-100 font-semibold px-3 py-2"
             >
               Submit KYC for review
             </button>
             <p className="mt-1 text-[10px] text-slate-500">
-              Admins will update your status in the profile table. This
-              interface only surfaces that status to you.
+              Admins will review your documents and set your KYC status to
+              approved or rejected. This interface simply reflects that status.
             </p>
           </div>
         </Card>
