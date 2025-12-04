@@ -62,5 +62,6 @@ export default function TopNav() {
         </div>
       </div>
     </header>
+    <SignOutButton />   // or <SignOutButton variant="link" />
   );
 }
