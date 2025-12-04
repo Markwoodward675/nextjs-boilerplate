@@ -3,220 +3,185 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Card from "../../components/Card";
-import { getCurrentUser, getUserWallets } from "../../lib/api";
+import { getCurrentUser, getUserWallets, getUserTransactions } from "@/lib/api";
+import UnverifiedEmailGate from "@/components/UnverifiedEmailGate";
 
-const PAIRS = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT"];
-
-export default function TradePage() {
+function useProtectedUser() {
   const router = useRouter();
-  const [checking, setChecking] = useState(true);
   const [user, setUser] = useState(null);
-  const [wallets, setWallets] = useState([]);
-  const [pair, setPair] = useState("BTC/USDT");
-  const [side, setSide] = useState("BUY");
-  const [size, setSize] = useState("50");
-  const [leverage, setLeverage] = useState("3");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const u = await getCurrentUser();
-      if (!mounted) return;
-      if (!u) {
-        router.replace("/auth/login?next=/trade");
-        return;
-      }
-      setUser(u);
-      setChecking(false);
+    let cancelled = false;
+    async function run() {
       try {
-        const w = await getUserWallets(u.$id);
-        if (!mounted) return;
-        setWallets(w);
-      } catch (err) {
-        console.error(err);
-        setError(String(err.message || err));
+        const u = await getCurrentUser();
+        if (!u) {
+          router.replace("/signin");
+          return;
+        }
+        if (!cancelled) setUser(u);
+      } finally {
+        if (!cancelled) setChecking(false);
       }
-    })();
+    }
+    run();
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, [router]);
 
-  if (checking) {
+  return { user, checking };
+}
+
+export default function TradePage() {
+  const { user, checking } = useProtectedUser();
+  const [tradingWallet, setTradingWallet] = useState(null);
+  const [trades, setTrades] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const [wallets, txs] = await Promise.all([
+          getUserWallets(user.$id),
+          getUserTransactions(user.$id, "trade"),
+        ]);
+        if (cancelled) return;
+
+        setTradingWallet((wallets || []).find((w) => w.type === "trading") || null);
+        setTrades(txs || []);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err?.message ||
+              "Unable to load trading data. Please try again shortly."
+          );
+        }
+      } finally {
+        if (!cancelled) setLoadingData(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  if (checking || loadingData) {
     return (
-      <main className="px-4 pt-6 pb-24 text-xs text-slate-400">
-        Checking session…
+      <main className="min-h-[70vh] flex items-center justify-center bg-slate-950">
+        <div className="text-sm text-slate-300">Loading trading workspace…</div>
       </main>
     );
   }
 
-  const trading = wallets.find((w) => w.type === "trading");
-  const tradingBalance = trading?.balance || 0;
-  const numericSize = parseFloat(size || "0");
-  const numericLev = parseFloat(leverage || "1");
-  const notional = numericSize * numericLev;
+  if (!user) return null;
 
-  function handlePreviewOrder(e) {
-    e.preventDefault();
-    setMessage("");
-
-    if (!numericSize || numericSize <= 0) {
-      setMessage("Enter a valid trade size.");
-      return;
-    }
-
-    if (numericSize > tradingBalance) {
-      setMessage(
-        "Insufficient trading wallet balance for this order size."
-      );
-      return;
-    }
-
-    setMessage(
-      `${side} ${pair} with size ${numericSize.toFixed(
-        2
-      )} USD @ x${numericLev.toFixed(
-        1
-      )} leverage. Orders are tracked here, execution stays at your broker/exchange.`
-    );
+  const emailVerified =
+    user.emailVerification || user?.prefs?.emailVerification;
+  if (!emailVerified) {
+    return <UnverifiedEmailGate email={user.email} />;
   }
 
   return (
-    <main className="px-4 pt-4 pb-24 space-y-4">
-      <section className="grid gap-3 md:grid-cols-[2fr,3fr]">
-        <Card>
-          <h1 className="text-xs font-semibold text-slate-100">
-            Crypto trade ticket
+    <main className="min-h-[80vh] bg-slate-950 px-4 py-6 text-slate-50">
+      <div className="mx-auto max-w-5xl space-y-4">
+        <header className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Trading workspace
           </h1>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Simulate live crypto trades with real risk sizing based on your
-            trading wallet. Execution is done with your own broker or
-            exchange.
+          <p className="text-sm text-slate-400">
+            Use your trading wallet to simulate day trades and track your
+            performance.
           </p>
+        </header>
 
-          <form onSubmit={handlePreviewOrder} className="mt-3 space-y-2">
-            <div className="text-[11px] text-slate-400">Symbol</div>
-            <select
-              value={pair}
-              onChange={(e) => setPair(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
-            >
-              {PAIRS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+        {error && (
+          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
+            {error}
+          </div>
+        )}
 
-            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setSide("BUY")}
-                className={`rounded-full px-3 py-2 border ${
-                  side === "BUY"
-                    ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
-                    : "border-slate-700 text-slate-300"
-                }`}
-              >
-                Long / Buy
-              </button>
-              <button
-                type="button"
-                onClick={() => setSide("SELL")}
-                className={`rounded-full px-3 py-2 border ${
-                  side === "SELL"
-                    ? "border-red-500 bg-red-500/10 text-red-300"
-                    : "border-slate-700 text-slate-300"
-                }`}
-              >
-                Short / Sell
-              </button>
-            </div>
-
-            <div className="mt-2 text-[11px] text-slate-400">
-              Size (risk capital in USD)
-            </div>
-            <input
-              type="number"
-              min="0"
-              step="10"
-              value={size}
-              onChange={(e) => setSize(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
-            />
-            <p className="mt-1 text-[10px] text-slate-500">
-              Trading wallet balance: {tradingBalance.toFixed(2)} USD
-            </p>
-
-            <div className="mt-2 text-[11px] text-slate-400">
-              Leverage (x)
-            </div>
-            <input
-              type="number"
-              min="1"
-              max="20"
-              step="0.5"
-              value={leverage}
-              onChange={(e) => setLeverage(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-blue-500"
-            />
-            <p className="mt-1 text-[10px] text-slate-500">
-              Position notional: {isNaN(notional) ? "0.00" : notional.toFixed(2)} USD
-            </p>
-
-            <button
-              type="submit"
-              className="mt-3 w-full rounded-full bg-blue-600 px-4 py-2 text-[11px] font-medium text-white hover:bg-blue-500"
-            >
-              Preview order
-            </button>
-
-            {message && (
-              <p className="mt-2 text-[11px] text-emerald-300">
-                {message}
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+          <p className="text-xs uppercase text-slate-400">Trading wallet</p>
+          {tradingWallet ? (
+            <>
+              <p className="mt-1 text-2xl font-semibold">
+                $
+                {Number(tradingWallet.balance || 0).toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}
               </p>
-            )}
-            {error && (
-              <p className="mt-2 text-[10px] text-red-400">
-                Unable to load trading wallet: {error}
+              <p className="text-xs text-slate-500 mt-1">
+                Returns balance: $
+                {Number(
+                  tradingWallet.investmentReturnsBalance || 0
+                ).toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}
               </p>
-            )}
-          </form>
-        </Card>
+              <p className="text-[11px] text-slate-500 mt-2">
+                Remember: this is an educational environment — no real orders
+                are sent to any broker.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-400">
+              No trading wallet found yet. It will be created automatically when
+              your profile is bootstrapped.
+            </p>
+          )}
+        </section>
 
-        <Card>
-          <div className="text-[11px] text-slate-400">Price structure</div>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Use this chart area conceptually: head &amp; shoulders, flags,
-            triangles, and multi-bar pullbacks. Your execution plan should be
-            written before you click buy or sell.
-          </p>
-          <div className="mt-3 h-52 rounded-xl bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border border-slate-700/80 relative overflow-hidden">
-            {/* Fake chart primitives */}
-            <div className="absolute inset-4 flex gap-1">
-              {Array.from({ length: 60 }).map((_, i) => (
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+          <h2 className="text-sm font-medium text-slate-200 mb-2">
+            Trade history
+          </h2>
+          {trades.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              You haven&apos;t logged any trades yet. Once you place your first
+              simulated trade, it will appear here.
+            </p>
+          ) : (
+            <div className="space-y-2 text-xs">
+              {trades.map((t) => (
                 <div
-                  key={i}
-                  className="flex-1 flex items-end justify-center"
+                  key={t.$id}
+                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950 px-3 py-2"
                 >
-                  <div
-                    className="w-[3px] rounded-full bg-emerald-400/70"
-                    style={{
-                      height: `${20 + (Math.sin(i / 4) + 1) * 18}px`,
-                    }}
-                  />
+                  <div>
+                    <p className="font-medium text-slate-100">
+                      {t.symbol || t.meta || "Trade"} •{" "}
+                      {t.status || "completed"}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {t.createdAt || t.$createdAt}
+                    </p>
+                  </div>
+                  <p
+                    className={`text-sm font-semibold ${
+                      (t.profit || 0) >= 0
+                        ? "text-emerald-300"
+                        : "text-rose-300"
+                    }`}
+                  >
+                    P&L: $
+                    {Number(t.profit || 0).toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
                 </div>
               ))}
             </div>
-            <div className="absolute inset-x-4 bottom-6 h-px bg-slate-700/70" />
-            <div className="absolute left-6 top-6 h-24 w-24 rounded-full border border-slate-600/60" />
-            <div className="absolute right-8 bottom-8 h-10 w-10 rotate-45 border border-blue-500/60" />
-          </div>
-        </Card>
-      </section>
+          )}
+        </section>
+      </div>
     </main>
   );
 }
