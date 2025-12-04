@@ -10,8 +10,8 @@ import {
   getUserAlerts,
   getAffiliateAccount,
   getAffiliateOverview,
-} from "@/lib/api";
-import UnverifiedEmailGate from "@/components/UnverifiedEmailGate";
+} from "../../lib/api";
+import UnverifiedEmailGate from "../../components/UnverifiedEmailGate";
 
 function useProtectedUser() {
   const router = useRouter();
