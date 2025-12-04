@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { account } from "@/lib/appwrite"; // adjust path if needed
+import { account } from "../lib/appwrite"; // 👈 match your lib/api.js import
 
 function getErrorMessage(err, fallback) {
   if (!err) return fallback;
