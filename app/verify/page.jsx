@@ -5,7 +5,6 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { account } from "../../lib/appwrite";
 
-// Optional: avoid static prerender headaches for this page
 export const dynamic = "force-dynamic";
 
 function getErrorMessage(err, fallback) {
@@ -66,7 +65,6 @@ function VerifyContent() {
           "Your email has been verified successfully. You can now access your Day Trader dashboard."
         );
 
-        // Redirect to dashboard after a short delay
         setTimeout(() => {
           if (!cancelled) {
             router.replace("/dashboard");
@@ -96,11 +94,21 @@ function VerifyContent() {
   const isError = status === "error";
 
   return (
-    <main className="min-h-[80vh] bg-slate-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
-        <h1 className="text-xl font-semibold text-slate-50 mb-2">
-          Email verification
-        </h1>
+    <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
+      <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-6 shadow-[0_0_40px_rgba(15,23,42,0.9)]">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-300 text-sm font-semibold">
+            DT
+          </div>
+          <div>
+            <p className="text-xs uppercase text-slate-500 tracking-wide">
+              Day Trader
+            </p>
+            <h1 className="text-lg font-semibold text-slate-50">
+              Email verification
+            </h1>
+          </div>
+        </div>
 
         {isVerifying && (
           <p className="text-sm text-slate-300">
@@ -109,12 +117,15 @@ function VerifyContent() {
         )}
 
         {isSuccess && (
-          <p className="text-sm text-emerald-300 mb-3">{message}</p>
+          <p className="text-sm text-emerald-300 mb-2">{message}</p>
         )}
 
-        {isError && (
-          <p className="text-sm text-rose-300 mb-3">{message}</p>
-        )}
+        {isError && <p className="text-sm text-rose-300 mb-2">{message}</p>}
+
+        <p className="mt-2 text-xs text-slate-500">
+          You&apos;ll be redirected to your dashboard automatically. If nothing
+          happens, use the buttons below.
+        </p>
 
         <div className="mt-4 flex gap-2">
           <button
@@ -132,26 +143,18 @@ function VerifyContent() {
             Go to dashboard
           </button>
         </div>
-
-        {isSuccess && (
-          <p className="mt-2 text-[11px] text-slate-500">
-            You&apos;ll be redirected automatically to your dashboard in a
-            moment.
-          </p>
-        )}
       </div>
     </main>
   );
 }
 
 export default function VerifyPage() {
-  // Wrap the hook-using content in Suspense to satisfy Next.js requirement
   return (
     <Suspense
       fallback={
-        <main className="min-h-[80vh] bg-slate-950 flex items-center justify-center px-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
-            <h1 className="text-xl font-semibold text-slate-50 mb-2">
+        <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
+          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl">
+            <h1 className="text-lg font-semibold text-slate-50 mb-2">
               Email verification
             </h1>
             <p className="text-sm text-slate-300">
