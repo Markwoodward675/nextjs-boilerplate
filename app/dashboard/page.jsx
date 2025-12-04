@@ -10,20 +10,9 @@ import {
   getAffiliateAccount,
   getAffiliateOverview,
   getUserAlerts,
+  resendVerificationEmail,
+  getErrorMessage,
 } from "../../lib/api";
-import { account } from "../../lib/appwrite";
-
-function getErrorMessage(err, fallback) {
-  if (!err) return fallback;
-  const anyErr = /** @type {any} */ (err);
-  if (anyErr?.message) return anyErr.message;
-  if (anyErr?.response?.message) return anyErr.response.message;
-  try {
-    return JSON.stringify(anyErr);
-  } catch {
-    return fallback;
-  }
-}
 
 function useProtectedUser() {
   const router = useRouter();
@@ -60,34 +49,18 @@ function EmailVerificationBanner({ user }) {
 
   const email = user?.email || "";
 
-  const VERIFIED_REDIRECT_URL =
-    "https://nextjs-boilerplate-psi-three-50.vercel.app/verify";
-
-  async function createVerificationCompat() {
-    const anyAccount = /** @type {any} */ (account);
-
-    if (typeof anyAccount.createVerification === "function") {
-      return anyAccount.createVerification({ url: VERIFIED_REDIRECT_URL });
-    }
-
-    if (typeof anyAccount.createEmailVerification === "function") {
-      return anyAccount.createEmailVerification(VERIFIED_REDIRECT_URL);
-    }
-
-    throw new Error("Email verification is not supported by this SDK version.");
-  }
-
   const handleResend = async () => {
     setSending(true);
     setMessage("");
     setError("");
 
     try {
-      await createVerificationCompat();
+      await resendVerificationEmail();
       setMessage(
         "Verification email sent. Please check your inbox (and spam folder)."
       );
     } catch (err) {
+      console.error("resendVerificationEmail error:", err);
       setError(
         getErrorMessage(
           err,
@@ -96,6 +69,12 @@ function EmailVerificationBanner({ user }) {
       );
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleReload = () => {
+    if (typeof window !== "undefined") {
+      window.location.reload();
     }
   };
 
@@ -121,7 +100,7 @@ function EmailVerificationBanner({ user }) {
           </button>
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={handleReload}
             className="rounded-xl border border-amber-200/40 bg-transparent px-3 py-1.5 text-xs font-medium hover:bg-amber-500/10 transition"
           >
             I&apos;ve verified
@@ -224,7 +203,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* You can keep or tweak these sections to match your previous layout */}
         <section className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
             <p className="text-xs text-slate-400">Main wallet</p>
@@ -265,7 +243,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* You can add charts / recent activity here using transactions & alerts */}
+        {/* You can extend this with charts, recent transactions, alerts summary, etc. */}
       </div>
     </main>
   );
