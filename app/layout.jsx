@@ -7,7 +7,7 @@ export const metadata = {
     "Day Trader - an educational trading and investment platform for simulated dashboards, wallets, and affiliate insights.",
 };
 
-// This replaces the old <meta name="viewport" ...> inside <head>
+// Next.js app router viewport config
 export const viewport = {
   width: "device-width",
   initialScale: 1,
@@ -18,7 +18,7 @@ export default function RootLayout({ children }) {
     <html lang="en" className="h-full overflow-x-hidden">
       <body className="min-h-screen bg-slate-950 text-slate-50 overflow-x-hidden">
         <div className="app-shell flex min-h-screen w-full flex-col overflow-x-hidden">
-          {/* Optional background particles layer – keep your CSS for .crypto-particles */}
+          {/* Optional background particles layer */}
           <div className="crypto-particles" aria-hidden="true" />
 
           {/* Main content */}
