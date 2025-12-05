@@ -12,36 +12,55 @@ export default function SignUpPage() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
     setError("");
+    setInfo("");
+    setSubmitting(true);
 
     try {
-      await registerUser({ fullName, email, password });
-      // User is created, session started, bootstrap done.
-      // They will hit the email gate on /dashboard until verified.
-      router.replace("/dashboard");
+      const { user, autoLoginSucceeded } = await registerUser({
+        fullName,
+        email,
+        password,
+      });
+
+      // If auto-login worked, send them straight to dashboard
+      if (autoLoginSucceeded) {
+        router.replace("/dashboard");
+        return;
+      }
+
+      // If auto-login failed, keep them here and clearly explain what to do
+      setInfo(
+        "Account created successfully. Please sign in with your email and password to continue."
+      );
     } catch (err) {
       setError(
         err?.message ||
-          "Sign up failed. Please review your details and try again."
+          "There was an error processing your request. Please check the inputs and try again."
       );
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleGoToSignIn = () => {
+    router.push("/signin");
+  };
+
   return (
     <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
       <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 p-6 shadow-[0_0_40px_rgba(15,23,42,0.9)]">
+        {/* Brand header */}
         <div className="mb-4 flex items-center gap-3">
-          <div className="h-9 w-9 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-300 text-sm font-semibold">
+          <div className="h-9 w-9 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-sm font-semibold text-emerald-300">
             DT
           </div>
           <div>
-            <p className="text-xs uppercase text-slate-500 tracking-wide">
+            <p className="text-[11px] uppercase text-slate-500 tracking-wide">
               Day Trader
             </p>
             <h1 className="text-lg font-semibold text-slate-50">
@@ -54,6 +73,22 @@ export default function SignUpPage() {
           Set up your Day Trader profile to start using educational wallets and
           trading simulations.
         </p>
+
+        {/* Info + error banners */}
+        {info && (
+          <div className="mb-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+            {info}
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={handleGoToSignIn}
+                className="text-[11px] font-medium underline underline-offset-4 hover:text-emerald-100"
+              >
+                Go to sign in
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
@@ -72,6 +107,7 @@ export default function SignUpPage() {
               autoComplete="name"
               required
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+              placeholder="Dialed"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
             />
@@ -87,6 +123,7 @@ export default function SignUpPage() {
               autoComplete="email"
               required
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+              placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -102,6 +139,7 @@ export default function SignUpPage() {
               autoComplete="new-password"
               required
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -125,11 +163,6 @@ export default function SignUpPage() {
           >
             Sign in
           </button>
-        </p>
-
-        <p className="mt-3 text-[11px] text-slate-500">
-          A verification link will be sent to your email. You&apos;ll need to
-          verify before unlocking all dashboard features.
         </p>
       </div>
     </main>
