@@ -1,7 +1,5 @@
 // app/layout.jsx
 import "./globals.css";
-import TopNav from "../components/TopNav";
-import MobileNav from "../components/MobileNav";
 
 export const metadata = {
   title: "Day Trader",
@@ -20,12 +18,8 @@ export default function RootLayout({ children }) {
     <html lang="en" className="h-full overflow-x-hidden">
       <body className="min-h-screen bg-slate-950 text-slate-50 overflow-x-hidden">
         <div className="app-shell flex min-h-screen w-full flex-col overflow-x-hidden">
-          {/* Optional background layer (keep your CSS/animation for .crypto-particles) */}
+          {/* Optional background particles layer */}
           <div className="crypto-particles" aria-hidden="true" />
-
-          {/* Global navigation */}
-          <TopNav />
-          <MobileNav />
 
           {/* Main content area */}
           <main className="flex-1 w-full max-w-full overflow-x-hidden">
