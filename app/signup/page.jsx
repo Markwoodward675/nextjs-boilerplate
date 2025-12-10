@@ -3,7 +3,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { registerUser, getCurrentUser, logoutUser } from "../../lib/api";
+import {
+  registerUser,
+  getCurrentUser,
+  logoutUser,
+} from "../../lib/api";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -39,7 +43,9 @@ export default function SignUpPage() {
     setInfo("");
     try {
       await logoutUser();
-    } catch {}
+    } catch {
+      // ignore logout errors
+    }
     // After logout, clear existing user and let them see the form
     setExistingUser(null);
   }
@@ -51,16 +57,17 @@ export default function SignUpPage() {
     setSubmitting(true);
 
     try {
-      const { user } = await registerUser({
+      await registerUser({
         fullName,
         email,
         password,
       });
 
       setInfo(
-        "Account created successfully. Please sign in with your email and password to continue."
+        "Account created successfully. Please sign in with your email and password to continue. A verification link will be sent to your email after you sign in."
       );
-      // Optional: clear form fields
+
+      // Clear form fields
       setFullName("");
       setEmail("");
       setPassword("");
@@ -153,9 +160,13 @@ export default function SignUpPage() {
           </div>
         </div>
 
-        <p className="text-sm text-slate-400 mb-4">
+        <p className="text-sm text-slate-400 mb-1">
           Set up your Day Trader profile to start using educational wallets and
           trading simulations.
+        </p>
+        <p className="text-[11px] text-amber-200 mb-4">
+          A verification link will be sent to your email. You&apos;ll need to
+          verify before unlocking all dashboard features.
         </p>
 
         {/* Info + error banners */}
@@ -191,7 +202,7 @@ export default function SignUpPage() {
               autoComplete="name"
               required
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
-              placeholder="Dialed"
+              placeholder="Kris Malcom"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
             />
@@ -247,6 +258,7 @@ export default function SignUpPage() {
           >
             Sign in
           </button>
+          .
         </p>
       </div>
     </main>
