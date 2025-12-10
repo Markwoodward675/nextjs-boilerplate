@@ -69,6 +69,7 @@ export default function SignInPage() {
   return (
     <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
       <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 p-6 shadow-[0_0_40px_rgba(15,23,42,0.9)]">
+        {/* Brand header */}
         <div className="mb-4 flex items-center gap-3">
           <div className="h-9 w-9 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-300 text-sm font-semibold">
             DT
@@ -84,8 +85,8 @@ export default function SignInPage() {
         </div>
 
         <p className="text-sm text-slate-400 mb-4">
-          Sign in to access your Day Trader wallets, trades, and educational
-          dashboards.
+          Sign in with your email and password to access your Day Trader
+          wallets, trades, and educational dashboards.
         </p>
 
         {error && (
@@ -130,7 +131,7 @@ export default function SignInPage() {
             disabled={submitting}
             className="mt-2 w-full rounded-xl border border-emerald-500/70 bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-50 hover:bg-emerald-500/30 transition disabled:opacity-60"
           >
-            {submitting ? "Signing in…" : "Sign in with email"}
+            {submitting ? "Signing in…" : "Sign in"}
           </button>
         </form>
 
@@ -141,8 +142,9 @@ export default function SignInPage() {
             onClick={() => router.push("/signup")}
             className="text-emerald-300 hover:text-emerald-200 underline underline-offset-4"
           >
-            Create one.
+            Create one
           </button>
+          .
         </p>
       </div>
     </main>
