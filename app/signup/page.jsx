@@ -23,7 +23,7 @@ export default function SignUpPage() {
   const [existingUser, setExistingUser] = useState(null);
   const [checkingExisting, setCheckingExisting] = useState(true);
 
-  // On load, check if someone is already signed in
+  // Check if someone is already signed in
   useEffect(() => {
     async function checkUser() {
       try {
@@ -46,7 +46,6 @@ export default function SignUpPage() {
     } catch {
       // ignore logout errors
     }
-    // After logout, clear existing user and let them see the form
     setExistingUser(null);
   }
 
@@ -67,7 +66,7 @@ export default function SignUpPage() {
         "Account created successfully. Please sign in with your email and password to continue. A verification link will be sent to your email after you sign in."
       );
 
-      // Clear form fields
+      // Clear form
       setFullName("");
       setEmail("");
       setPassword("");
@@ -85,7 +84,6 @@ export default function SignUpPage() {
     router.push("/signin");
   };
 
-  // While checking existing user
   if (checkingExisting) {
     return (
       <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
@@ -96,7 +94,6 @@ export default function SignUpPage() {
     );
   }
 
-  // If someone is already signed in, show a "switch account" screen
   if (existingUser) {
     return (
       <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
@@ -114,8 +111,8 @@ export default function SignUpPage() {
             <span className="font-medium text-emerald-300">
               {existingUser.email}
             </span>
-            . If you want to create a new account, sign out and switch
-            accounts first.
+            . If you want to create a new account, sign out and switch accounts
+            first.
           </p>
           <button
             type="button"
@@ -141,7 +138,7 @@ export default function SignUpPage() {
     );
   }
 
-  // Normal signup form
+  // Pure email/password signup
   return (
     <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
       <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 p-6 shadow-[0_0_40px_rgba(15,23,42,0.9)]">
@@ -155,21 +152,19 @@ export default function SignUpPage() {
               Day Trader
             </p>
             <h1 className="text-lg font-semibold text-slate-50">
-              Create your account
+              Create your Day Trader account
             </h1>
           </div>
         </div>
 
         <p className="text-sm text-slate-400 mb-1">
-          Set up your Day Trader profile to start using educational wallets and
-          trading simulations.
+          Secure access to your trading tools, wallets, and affiliate dashboard.
         </p>
         <p className="text-[11px] text-amber-200 mb-4">
           A verification link will be sent to your email. You&apos;ll need to
           verify before unlocking all dashboard features.
         </p>
 
-        {/* Info + error banners */}
         {info && (
           <div className="mb-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
             {info}
@@ -238,6 +233,9 @@ export default function SignUpPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <p className="mt-1 text-[11px] text-slate-500">
+              Tip: Appwrite default is at least 8 characters.
+            </p>
           </div>
 
           <button
@@ -245,7 +243,7 @@ export default function SignUpPage() {
             disabled={submitting}
             className="mt-2 w-full rounded-xl border border-emerald-500/70 bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-50 hover:bg-emerald-500/30 transition disabled:opacity-60"
           >
-            {submitting ? "Creating account…" : "Create account"}
+            {submitting ? "Creating account…" : "Create account with email"}
           </button>
         </form>
 
