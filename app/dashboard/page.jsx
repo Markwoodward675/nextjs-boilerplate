@@ -1,9 +1,9 @@
 // app/dashboard/page.jsx
-"use client"; 
+"use client";
 
-import { account, databases, IDHelper, QueryHelper, DB_ID } from "./appwrite";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import {
   getCurrentUser,
   getUserWallets,
@@ -12,11 +12,15 @@ import {
   getAffiliateOverview,
   getUserAlerts,
 } from "../../lib/api";
-import { account } from "../../lib/appwrite";
 
+import { account } from "../../lib/appwrite"; // <-- single correct import
+
+/* -------------------------------------------------------------------------- */
+/*  Error Helper                                                              */
+/* -------------------------------------------------------------------------- */
 function getErrorMessage(err, fallback) {
   if (!err) return fallback;
-  const anyErr = /** @type {any} */ (err);
+  const anyErr = err;
   if (anyErr?.message) return anyErr.message;
   if (anyErr?.response?.message) return anyErr.response.message;
   try {
@@ -26,6 +30,9 @@ function getErrorMessage(err, fallback) {
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Protected Route (redirect if not logged in)                               */
+/* -------------------------------------------------------------------------- */
 function useProtectedUser() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -33,6 +40,7 @@ function useProtectedUser() {
 
   useEffect(() => {
     let cancelled = false;
+
     async function run() {
       try {
         const u = await getCurrentUser();
@@ -45,27 +53,29 @@ function useProtectedUser() {
         if (!cancelled) setChecking(false);
       }
     }
+
     run();
-    return () => {
-      cancelled = true;
-    };
+    return () => (cancelled = true);
   }, [router]);
 
   return { user, checking };
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Email Verification Banner (unverified users)                              */
+/* -------------------------------------------------------------------------- */
 function EmailVerificationBanner({ user }) {
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const email = user?.email || "";
-
   const VERIFIED_REDIRECT_URL =
+    process.env.NEXT_PUBLIC_APPWRITE_VERIFY_REDIRECT_URL ||
     "https://nextjs-boilerplate-psi-three-50.vercel.app/verify";
 
   async function createVerificationCompat() {
-    const anyAccount = /** @type {any} */ (account);
+    const anyAccount = account;
 
     if (typeof anyAccount.createVerification === "function") {
       return anyAccount.createVerification({ url: VERIFIED_REDIRECT_URL });
@@ -75,9 +85,7 @@ function EmailVerificationBanner({ user }) {
       return anyAccount.createEmailVerification(VERIFIED_REDIRECT_URL);
     }
 
-    throw new Error(
-      "This Appwrite SDK version does not support email verification."
-    );
+    throw new Error("This Appwrite SDK version does not support email verification.");
   }
 
   const handleResend = async () => {
@@ -87,16 +95,10 @@ function EmailVerificationBanner({ user }) {
 
     try {
       await createVerificationCompat();
-      setMessage(
-        "Verification email sent. Please check your inbox (and spam folder)."
-      );
+      setMessage("Verification email sent. Check your inbox.");
     } catch (err) {
-      console.error("resend verification error:", err);
       setError(
-        getErrorMessage(
-          err,
-          "Could not send verification email. Please try again in a moment."
-        )
+        getErrorMessage(err, "Could not send verification email. Try again shortly.")
       );
     } finally {
       setSending(false);
@@ -104,13 +106,7 @@ function EmailVerificationBanner({ user }) {
   };
 
   const handleReload = () => {
-    try {
-      if (typeof window !== "undefined") {
-        window.location.reload();
-      }
-    } catch (err) {
-      console.error("reload error:", err);
-    }
+    if (typeof window !== "undefined") window.location.reload();
   };
 
   return (
@@ -119,41 +115,40 @@ function EmailVerificationBanner({ user }) {
         <div>
           <p className="font-medium">Verify your email to unlock everything</p>
           <p className="text-xs text-amber-100/90">
-            We&apos;ve sent a verification link to{" "}
-            <span className="font-semibold">{email}</span>. You&apos;ll need to
-            verify before accessing all Day Trader features.
+            A verification link was sent to{" "}
+            <span className="font-semibold">{email}</span>.
           </p>
         </div>
+
         <div className="flex flex-col sm:flex-row gap-2">
           <button
             type="button"
             disabled={sending}
             onClick={handleResend}
-            className="rounded-xl border border-amber-400/70 bg-amber-500/20 px-3 py-1.5 text-xs font-medium hover:bg-amber-500/30 transition disabled:opacity-60"
+            className="rounded-xl border border-amber-400/70 bg-amber-500/20 px-3 py-1.5 text-xs font-medium transition hover:bg-amber-500/30 disabled:opacity-60"
           >
             {sending ? "Sending…" : "Resend email"}
           </button>
+
           <button
             type="button"
             onClick={handleReload}
-            className="rounded-xl border border-amber-200/40 bg-transparent px-3 py-1.5 text-xs font-medium hover:bg-amber-500/10 transition"
+            className="rounded-xl border border-amber-200/40 bg-transparent px-3 py-1.5 text-xs font-medium transition hover:bg-amber-500/10"
           >
             I&apos;ve verified
           </button>
         </div>
       </div>
-      {message && (
-        <p className="mt-2 text-[11px] text-emerald-100">{message}</p>
-      )}
-      {error && (
-        <p className="mt-2 text-[11px] text-rose-100">
-          {typeof error === "string" ? error : String(error)}
-        </p>
-      )}
+
+      {message && <p className="mt-2 text-[11px] text-emerald-100">{message}</p>}
+      {error && <p className="mt-2 text-[11px] text-rose-100">{error}</p>}
     </div>
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/*  MAIN DASHBOARD COMPONENT                                                  */
+/* -------------------------------------------------------------------------- */
 export default function DashboardPage() {
   const { user, checking } = useProtectedUser();
   const [wallets, setWallets] = useState([]);
@@ -164,8 +159,10 @@ export default function DashboardPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState("");
 
+  /* Load dashboard data after user is fetched */
   useEffect(() => {
     if (!user) return;
+
     let cancelled = false;
 
     async function load() {
@@ -177,6 +174,7 @@ export default function DashboardPage() {
           getAffiliateOverview(user.$id),
           getUserAlerts(user.$id),
         ]);
+
         if (cancelled) return;
 
         setWallets(ws || []);
@@ -197,9 +195,7 @@ export default function DashboardPage() {
     }
 
     load();
-    return () => {
-      cancelled = true;
-    };
+    return () => (cancelled = true);
   }, [user]);
 
   if (checking || loadingData || !user) {
@@ -238,6 +234,7 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Wallet Cards */}
         <section className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
             <p className="text-xs text-slate-400">Main wallet</p>
@@ -251,6 +248,7 @@ export default function DashboardPage() {
               Educational balance for overall portfolio simulations.
             </p>
           </div>
+
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
             <p className="text-xs text-slate-400">Trading wallet</p>
             <p className="mt-1 text-2xl font-semibold">
@@ -263,22 +261,20 @@ export default function DashboardPage() {
               For intraday and swing trade simulations.
             </p>
           </div>
+
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
             <p className="text-xs text-slate-400">Affiliate wallet</p>
             <p className="mt-1 text-2xl font-semibold">
               $
-              {Number(affiliateWallet?.balance || 0).toLocaleString(
-                undefined,
-                { maximumFractionDigits: 2 }
-              )}
+              {Number(affiliateWallet?.balance || 0).toLocaleString(undefined, {
+                maximumFractionDigits: 2,
+              })}
             </p>
             <p className="mt-1 text-[11px] text-slate-500">
               Tracks simulated payouts from referrals.
             </p>
           </div>
         </section>
-
-        {/* Extend here with charts / recent activity if you want */}
       </div>
     </main>
   );
