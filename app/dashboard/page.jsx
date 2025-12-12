@@ -10,8 +10,9 @@ import {
   getAffiliateAccount,
   getAffiliateOverview,
   getUserAlerts,
-  resendVerificationEmail,
+  getUserProfile,            // 👈 NEW
 } from "../../lib/api";
+
 
 // Small helper for error messages
 function getErrorMessage(err, fallback) {
@@ -133,6 +134,8 @@ function EmailVerificationBanner({ user }) {
 export default function DashboardPage() {
   const router = useRouter();
   const { user, checking } = useProtectedUser();
+  const [codeVerified, setCodeVerified] = useState(null);
+
 
   const [wallets, setWallets] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -143,6 +146,34 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+  if (!user) return;
+  let cancelled = false;
+
+  async function checkCode() {
+    try {
+      const profile = await getUserProfile(user.$id);
+      if (cancelled) return;
+
+      if (profile?.verificationCodeVerified) {
+        setCodeVerified(true);
+      } else {
+        // Not verified by code → send them to verify-code gate
+        setCodeVerified(false);
+        router.replace("/verify-code");
+      }
+    } catch (err) {
+      if (!cancelled) {
+        console.error("Code verification check failed:", err);
+      }
+    }
+  }
+
+  checkCode();
+  return () => {
+    cancelled = true;
+  };
+}, [user, router]);
+useEffect(() => {
     if (!user) return;
     let cancelled = false;
 
@@ -180,13 +211,13 @@ export default function DashboardPage() {
     };
   }, [user]);
 
-  if (checking || loadingData || !user) {
-    return (
-      <main className="min-h-[100vh] flex items-center justify-center bg-slate-950">
-        <div className="text-sm text-slate-300">Loading your dashboard…</div>
-      </main>
-    );
-  }
+  if (checking || loadingData || !user || codeVerified === null) {
+  return (
+    <main className="min-h-[100vh] flex items-center justify-center bg-slate-950">
+      <div className="text-sm text-slate-300">Loading your dashboard…</div>
+    </main>
+  );
+}
 
   const emailVerified =
     user.emailVerification || user?.prefs?.emailVerification;
