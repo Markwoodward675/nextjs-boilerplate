@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
 import {
   getCurrentUser,
   getUserWallets,
@@ -11,16 +10,13 @@ import {
   getAffiliateAccount,
   getAffiliateOverview,
   getUserAlerts,
+  resendVerificationEmail,
 } from "../../lib/api";
 
-import { account } from "../../lib/appwrite"; // <-- single correct import
-
-/* -------------------------------------------------------------------------- */
-/*  Error Helper                                                              */
-/* -------------------------------------------------------------------------- */
+// Small helper for error messages
 function getErrorMessage(err, fallback) {
   if (!err) return fallback;
-  const anyErr = err;
+  const anyErr = /** @type {any} */ (err);
   if (anyErr?.message) return anyErr.message;
   if (anyErr?.response?.message) return anyErr.response.message;
   try {
@@ -30,9 +26,7 @@ function getErrorMessage(err, fallback) {
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Protected Route (redirect if not logged in)                               */
-/* -------------------------------------------------------------------------- */
+// Protect route: redirect to /signin if not logged in
 function useProtectedUser() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -40,7 +34,6 @@ function useProtectedUser() {
 
   useEffect(() => {
     let cancelled = false;
-
     async function run() {
       try {
         const u = await getCurrentUser();
@@ -53,40 +46,22 @@ function useProtectedUser() {
         if (!cancelled) setChecking(false);
       }
     }
-
     run();
-    return () => (cancelled = true);
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   return { user, checking };
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Email Verification Banner (unverified users)                              */
-/* -------------------------------------------------------------------------- */
+// Email verification gate (before showing full data)
 function EmailVerificationBanner({ user }) {
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const email = user?.email || "";
-  const VERIFIED_REDIRECT_URL =
-    process.env.NEXT_PUBLIC_APPWRITE_VERIFY_REDIRECT_URL ||
-    "https://nextjs-boilerplate-psi-three-50.vercel.app/verify";
-
-  async function createVerificationCompat() {
-    const anyAccount = account;
-
-    if (typeof anyAccount.createVerification === "function") {
-      return anyAccount.createVerification({ url: VERIFIED_REDIRECT_URL });
-    }
-
-    if (typeof anyAccount.createEmailVerification === "function") {
-      return anyAccount.createEmailVerification(VERIFIED_REDIRECT_URL);
-    }
-
-    throw new Error("This Appwrite SDK version does not support email verification.");
-  }
 
   const handleResend = async () => {
     setSending(true);
@@ -94,11 +69,16 @@ function EmailVerificationBanner({ user }) {
     setError("");
 
     try {
-      await createVerificationCompat();
-      setMessage("Verification email sent. Check your inbox.");
+      await resendVerificationEmail();
+      setMessage(
+        "Verification email sent. Please check your inbox (and spam folder)."
+      );
     } catch (err) {
       setError(
-        getErrorMessage(err, "Could not send verification email. Try again shortly.")
+        getErrorMessage(
+          err,
+          "Could not send verification email. Please try again in a moment."
+        )
       );
     } finally {
       setSending(false);
@@ -106,7 +86,9 @@ function EmailVerificationBanner({ user }) {
   };
 
   const handleReload = () => {
-    if (typeof window !== "undefined") window.location.reload();
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
   };
 
   return (
@@ -115,42 +97,43 @@ function EmailVerificationBanner({ user }) {
         <div>
           <p className="font-medium">Verify your email to unlock everything</p>
           <p className="text-xs text-amber-100/90">
-            A verification link was sent to{" "}
-            <span className="font-semibold">{email}</span>.
+            We&apos;ve sent a verification link to{" "}
+            <span className="font-semibold">{email}</span>. You&apos;ll need to
+            verify before accessing all Day Trader features.
           </p>
         </div>
-
         <div className="flex flex-col sm:flex-row gap-2">
           <button
             type="button"
             disabled={sending}
             onClick={handleResend}
-            className="rounded-xl border border-amber-400/70 bg-amber-500/20 px-3 py-1.5 text-xs font-medium transition hover:bg-amber-500/30 disabled:opacity-60"
+            className="rounded-xl border border-amber-400/70 bg-amber-500/20 px-3 py-1.5 text-xs font-medium hover:bg-amber-500/30 disabled:opacity-60"
           >
-            {sending ? "Sending…" : "Resend email"}
+            {sending ? "Resending…" : "Resend email"}
           </button>
-
           <button
             type="button"
             onClick={handleReload}
-            className="rounded-xl border border-amber-200/40 bg-transparent px-3 py-1.5 text-xs font-medium transition hover:bg-amber-500/10"
+            className="rounded-xl border border-amber-400/40 bg-transparent px-3 py-1.5 text-xs font-medium hover:bg-amber-500/10"
           >
             I&apos;ve verified
           </button>
         </div>
       </div>
-
-      {message && <p className="mt-2 text-[11px] text-emerald-100">{message}</p>}
-      {error && <p className="mt-2 text-[11px] text-rose-100">{error}</p>}
+      {message && (
+        <p className="mt-2 text-[11px] text-emerald-100/90">{message}</p>
+      )}
+      {error && (
+        <p className="mt-2 text-[11px] text-rose-100/90">{error}</p>
+      )}
     </div>
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/*  MAIN DASHBOARD COMPONENT                                                  */
-/* -------------------------------------------------------------------------- */
 export default function DashboardPage() {
+  const router = useRouter();
   const { user, checking } = useProtectedUser();
+
   const [wallets, setWallets] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [affiliate, setAffiliate] = useState(null);
@@ -159,10 +142,8 @@ export default function DashboardPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState("");
 
-  /* Load dashboard data after user is fetched */
   useEffect(() => {
     if (!user) return;
-
     let cancelled = false;
 
     async function load() {
@@ -174,7 +155,6 @@ export default function DashboardPage() {
           getAffiliateOverview(user.$id),
           getUserAlerts(user.$id),
         ]);
-
         if (cancelled) return;
 
         setWallets(ws || []);
@@ -195,12 +175,14 @@ export default function DashboardPage() {
     }
 
     load();
-    return () => (cancelled = true);
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   if (checking || loadingData || !user) {
     return (
-      <main className="min-h-[80vh] flex items-center justify-center bg-slate-950">
+      <main className="min-h-[100vh] flex items-center justify-center bg-slate-950">
         <div className="text-sm text-slate-300">Loading your dashboard…</div>
       </main>
     );
@@ -213,19 +195,57 @@ export default function DashboardPage() {
   const tradingWallet = wallets.find((w) => w.type === "trading");
   const affiliateWallet = wallets.find((w) => w.type === "affiliate");
 
+  // 🧱 Simple top navigation for protected area
+  const NavLink = ({ label, href }) => (
+    <button
+      type="button"
+      onClick={() => router.push(href)}
+      className="text-xs text-slate-300 hover:text-emerald-300 transition"
+    >
+      {label}
+    </button>
+  );
+
   return (
-    <main className="min-h-[100vh] bg-slate-950 px-4 py-6 text-slate-50">
+    <main className="min-h-[100vh] bg-slate-950 px-4 py-4 text-slate-50">
       <div className="mx-auto max-w-6xl space-y-4">
-        <header className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Overview dashboard
-          </h1>
-          <p className="text-sm text-slate-400">
-            Track your educational balances, activity, and affiliate insights in
-            one place.
-          </p>
+        {/* Top nav */}
+        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-2">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-sm font-semibold text-emerald-300">
+              DT
+            </div>
+            <div>
+              <p className="text-[11px] uppercase text-slate-500 tracking-wide">
+                Day Trader
+              </p>
+              <h1 className="text-lg font-semibold text-slate-50">
+                Overview dashboard
+              </h1>
+              <p className="text-xs text-slate-400">
+                Track your educational balances, activity, and affiliate
+                insights in one place.
+              </p>
+            </div>
+          </div>
+
+          <nav className="flex flex-wrap gap-3 text-xs">
+            <NavLink label="Dashboard" href="/dashboard" />
+            <NavLink label="Wallets" href="/wallet" />
+            <NavLink label="Trade" href="/trade" />
+            <NavLink label="Invest" href="/invest" />
+            <NavLink label="Deposit" href="/deposit" />
+            <NavLink label="Withdraw" href="/withdraw" />
+            <NavLink label="Transactions" href="/transactions" />
+            <NavLink label="Affiliate" href="/affiliate" />
+            <NavLink label="Giftcards: Buy" href="/giftcards/buy" />
+            <NavLink label="Giftcards: Sell" href="/giftcards/sell" />
+            <NavLink label="Alerts" href="/alerts" />
+            <NavLink label="Settings" href="/settings" />
+          </nav>
         </header>
 
+        {/* Email verification gate */}
         {!emailVerified && <EmailVerificationBanner user={user} />}
 
         {error && (
@@ -234,7 +254,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Wallet Cards */}
+        {/* Wallet cards */}
         <section className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
             <p className="text-xs text-slate-400">Main wallet</p>
@@ -273,6 +293,58 @@ export default function DashboardPage() {
             <p className="mt-1 text-[11px] text-slate-500">
               Tracks simulated payouts from referrals.
             </p>
+          </div>
+        </section>
+
+        {/* Simple recent activity + alerts summary */}
+        <section className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+            <h2 className="text-sm font-semibold mb-2">Recent activity</h2>
+            {transactions.length === 0 ? (
+              <p className="text-xs text-slate-500">
+                No activity yet. Once you start simulated deposits, trades, or
+                investments, they&apos;ll appear here.
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {transactions.slice(0, 5).map((tx) => (
+                  <li
+                    key={tx.$id}
+                    className="flex items-center justify-between text-xs text-slate-300"
+                  >
+                    <span className="capitalize">{tx.type}</span>
+                    <span>
+                      $
+                      {Number(tx.amount || 0).toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+            <h2 className="text-sm font-semibold mb-2">Alerts</h2>
+            {alerts.length === 0 ? (
+              <p className="text-xs text-slate-500">
+                No alerts yet. Important updates and signup bonuses will show
+                here.
+              </p>
+            ) : (
+              <ul className="space-y-1 max-h-40 overflow-auto">
+                {alerts.slice(0, 5).map((alert) => (
+                  <li
+                    key={alert.$id}
+                    className="text-xs text-slate-200 border-b border-slate-800/70 pb-1 last:border-b-0"
+                  >
+                    <p className="font-medium">{alert.title}</p>
+                    <p className="text-[11px] text-slate-400">{alert.body}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
       </div>
