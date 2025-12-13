@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getCurrentUser,
+  ensureUserBootstrap,
   requestVerificationCode,
   confirmVerificationCode,
 } from "../../lib/api";
@@ -23,19 +24,23 @@ function getErrorMessage(err, fallback) {
 
 export default function VerifyCodePage() {
   const router = useRouter();
+
   const [user, setUser] = useState(null);
   const [checkingUser, setCheckingUser] = useState(true);
 
   const [code, setCode] = useState("");
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+
   const [info, setInfo] = useState("");
   const [error, setError] = useState("");
 
-  // DEV ONLY: show the code we generated so you can test
+  // DEV ONLY: show generated code (when functionId is not set)
   const [devCode, setDevCode] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
       try {
         const u = await getCurrentUser();
@@ -43,12 +48,35 @@ export default function VerifyCodePage() {
           router.replace("/signin");
           return;
         }
-        setUser(u);
+
+        // ✅ Ensure profile/wallets/bonus exist before we do anything
+        try {
+          await ensureUserBootstrap(u);
+        } catch (e) {
+          // If permissions are wrong, we want a helpful message
+          const msg = getErrorMessage(e, "Bootstrap failed.");
+          console.warn("[verify-code] bootstrap error:", e);
+
+          if (!cancelled) {
+            setError(
+              msg +
+                "\n\nFix in Appwrite Console → Database → Collections (user_profile, wallets, alerts) → Permissions:\n" +
+                "Create: Users, Read: Users, Update: Users, Delete: Users.\n" +
+                "Also ensure Document Security is enabled."
+            );
+          }
+        }
+
+        if (!cancelled) setUser(u);
       } finally {
-        setCheckingUser(false);
+        if (!cancelled) setCheckingUser(false);
       }
     }
+
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const handleSendCode = async () => {
@@ -58,12 +86,19 @@ export default function VerifyCodePage() {
     setDevCode("");
 
     try {
+      // Extra safety: ensure docs exist (handles refresh edge cases)
+      await ensureUserBootstrap(user);
+
       const res = await requestVerificationCode();
+
       setInfo(
         "A 6-digit verification code has been generated. In production this would be emailed or sent by SMS."
       );
-      // Dev mode: show it visibly so you can enter it
-      setDevCode(res.code);
+
+      // ✅ Your API returns devCode (not code) in DEV fallback
+      if (res?.devCode) {
+        setDevCode(res.devCode);
+      }
     } catch (err) {
       setError(
         getErrorMessage(
@@ -83,11 +118,11 @@ export default function VerifyCodePage() {
     setInfo("");
 
     try {
+      await ensureUserBootstrap(user);
+
       await confirmVerificationCode(code.trim());
       setInfo("Code verified successfully. Redirecting to your dashboard...");
-      setTimeout(() => {
-        router.replace("/dashboard");
-      }, 1500);
+      setTimeout(() => router.replace("/dashboard"), 900);
     } catch (err) {
       setError(
         getErrorMessage(
@@ -110,9 +145,7 @@ export default function VerifyCodePage() {
     );
   }
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   const email = user.email || "";
 
@@ -155,7 +188,7 @@ export default function VerifyCodePage() {
         )}
 
         {error && (
-          <div className="mb-3 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+          <div className="mb-3 whitespace-pre-line rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
             {error}
           </div>
         )}
