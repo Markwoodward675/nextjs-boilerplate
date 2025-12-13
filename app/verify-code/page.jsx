@@ -71,7 +71,7 @@ export default function VerifyCodePage() {
       } finally {
         if (!cancelled) setCheckingUser(false);
       }
-    }
+    
 
     load();
     return () => {
@@ -97,7 +97,7 @@ export default function VerifyCodePage() {
 
       // ✅ Your API returns devCode (not code) in DEV fallback
       if (res?.devCode) {
-        setDevCode(res.devCode);
+        setDevCode(res.devCode || "");
       }
     } catch (err) {
       setError(
