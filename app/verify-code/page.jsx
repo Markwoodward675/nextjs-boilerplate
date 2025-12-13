@@ -1,7 +1,6 @@
-// app/verify-code/page.jsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getCurrentUser,
@@ -25,8 +24,8 @@ function getErrorMessage(err, fallback) {
 export default function VerifyCodePage() {
   const router = useRouter();
 
+  const [checking, setChecking] = useState(true);
   const [user, setUser] = useState(null);
-  const [checkingUser, setCheckingUser] = useState(true);
 
   const [code, setCode] = useState("");
   const [sending, setSending] = useState(false);
@@ -35,70 +34,71 @@ export default function VerifyCodePage() {
   const [info, setInfo] = useState("");
   const [error, setError] = useState("");
 
-  // DEV ONLY: show generated code (when functionId is not set)
+  // DEV-only: if your api.js fallback returns devCode, we show it
   const [devCode, setDevCode] = useState("");
+
+  const email = useMemo(() => user?.email || "", [user]);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
+    async function init() {
       try {
         const u = await getCurrentUser();
+
         if (!u) {
           router.replace("/signin");
           return;
         }
 
-        // ✅ Ensure profile/wallets/bonus exist before we do anything
+        // Ensure profile/wallets/bonus exist before code flows
         try {
           await ensureUserBootstrap(u);
         } catch (e) {
-          // If permissions are wrong, we want a helpful message
+          // Keep the user signed in, but show a helpful message
           const msg = getErrorMessage(e, "Bootstrap failed.");
-          console.warn("[verify-code] bootstrap error:", e);
-
           if (!cancelled) {
             setError(
               msg +
-                "\n\nFix in Appwrite Console → Database → Collections (user_profile, wallets, alerts) → Permissions:\n" +
-                "Create: Users, Read: Users, Update: Users, Delete: Users.\n" +
-                "Also ensure Document Security is enabled."
+                "\n\nIf this says NOT AUTHORIZED: Appwrite Console → DB → Collections (user_profile, wallets, alerts) → Permissions: Create/Read/Update/Delete = Users.\n" +
+                'If this says Missing required attribute like "username": add it in code or make it optional in Appwrite.'
             );
           }
         }
 
         if (!cancelled) setUser(u);
       } finally {
-        if (!cancelled) setCheckingUser(false);
+        if (!cancelled) setChecking(false);
       }
-    
+    }
 
-    load();
+    init();
+
     return () => {
       cancelled = true;
     };
   }, [router]);
 
-  const handleSendCode = async () => {
+  async function handleSendCode() {
+    if (!user) return;
+
     setSending(true);
     setError("");
     setInfo("");
     setDevCode("");
 
     try {
-      // Extra safety: ensure docs exist (handles refresh edge cases)
+      // Extra safety: ensures profile exists (handles refresh)
       await ensureUserBootstrap(user);
 
       const res = await requestVerificationCode();
 
       setInfo(
-        "A 6-digit verification code has been generated. In production this would be emailed or sent by SMS."
+        "A 6-digit verification code has been generated. In production, you would receive this by email or SMS."
       );
 
-      // ✅ Your API returns devCode (not code) in DEV fallback
-      if (res?.devCode) {
-        setDevCode(res.devCode || "");
-      }
+      // ✅ api.js returns devCode in DEV fallback
+      if (res?.devCode) setDevCode(String(res.devCode));
     } catch (err) {
       setError(
         getErrorMessage(
@@ -109,20 +109,22 @@ export default function VerifyCodePage() {
     } finally {
       setSending(false);
     }
-  };
+  }
 
-  const handleVerify = async (e) => {
+  async function handleVerify(e) {
     e.preventDefault();
+    if (!user) return;
+
     setVerifying(true);
     setError("");
     setInfo("");
 
     try {
       await ensureUserBootstrap(user);
-
       await confirmVerificationCode(code.trim());
-      setInfo("Code verified successfully. Redirecting to your dashboard...");
-      setTimeout(() => router.replace("/dashboard"), 900);
+
+      setInfo("Code verified successfully. Redirecting to your dashboard…");
+      setTimeout(() => router.replace("/dashboard"), 800);
     } catch (err) {
       setError(
         getErrorMessage(
@@ -133,9 +135,9 @@ export default function VerifyCodePage() {
     } finally {
       setVerifying(false);
     }
-  };
+  }
 
-  if (checkingUser) {
+  if (checking) {
     return (
       <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
         <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-200">
@@ -147,12 +149,10 @@ export default function VerifyCodePage() {
 
   if (!user) return null;
 
-  const email = user.email || "";
-
   return (
     <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 p-6 shadow-[0_0_40px_rgba(15,23,42,0.9)]">
-        {/* Brand header */}
+      <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 p-6">
+        {/* Header */}
         <div className="mb-4 flex items-center gap-3">
           <div className="h-9 w-9 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-sm font-semibold text-emerald-300">
             DT
@@ -218,8 +218,8 @@ export default function VerifyCodePage() {
               placeholder="••••••"
               value={code}
               onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "").slice(0, 6);
-                setCode(value);
+                const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+                setCode(v);
               }}
             />
           </div>
