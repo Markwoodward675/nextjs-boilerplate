@@ -1,17 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import UnverifiedEmailGate from "../../../components/UnverifiedEmailGate";
 import MetricStrip from "../../../components/MetricStrip";
-import { getCurrentUser, getUserProfile } from "../../../lib/api";
+import AvatarModal from "../../../components/AvatarModal";
+import AppShellPro from "../../../components/AppShellPro";
+import {
+  getCurrentUser,
+  getUserProfile,
+  updateUserProfile,
+  uploadProfilePicture,
+} from "../../../lib/api";
 
 export default function SettingsPage() {
   const router = useRouter();
   const [me, setMe] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [ok, setOk] = useState("");
+
+  const [fullName, setFullName] = useState("");
+  const [displayName, setDisplayName] = useState("");
 
   useEffect(() => {
     let cancel = false;
@@ -23,61 +34,142 @@ export default function SettingsPage() {
         setMe(u);
 
         const p = await getUserProfile(u.$id);
-        if (!cancel) setProfile(p);
+        if (!cancel) {
+          setProfile(p);
+          setFullName(p?.fullName || u?.name || "");
+          setDisplayName(p?.displayName || "");
+        }
       } catch (e) {
-        if (!cancel) setErr(e?.message || "Unable to load profile.");
-      } finally {
-        if (!cancel) setLoading(false);
+        if (!cancel) setErr(e?.message || "Unable to load settings.");
       }
     })();
-    return () => { cancel = true; };
+    return () => {
+      cancel = true;
+    };
   }, [router]);
 
-  const metrics = [
-    { label: "User", value: profile?.username || "—", sub: "username" },
-    { label: "Role", value: profile?.role || "user", sub: "access" },
-    { label: "KYC", value: profile?.kycStatus || "not_submitted", sub: "status" },
-    { label: "Verification", value: String(profile?.verificationCodeVerified ?? false), sub: "code gate" },
-  ];
+  const metrics = useMemo(() => {
+    return [
+      { label: "User", value: profile?.username || "—", sub: "Username" },
+      { label: "Role", value: profile?.role || "user", sub: "Access" },
+      { label: "KYC", value: profile?.kycStatus || "not_submitted", sub: "Status" },
+      { label: "Verified", value: String(profile?.verificationCodeVerified ?? false), sub: "Code" },
+    ];
+  }, [profile]);
 
-  if (loading) return <div className="text-sm text-slate-400">Loading settings…</div>;
+  const saveProfile = async () => {
+    setSaving(true);
+    setErr("");
+    setOk("");
+    try {
+      if (!me?.$id) throw new Error("No session");
+      const updated = await updateUserProfile(me.$id, {
+        fullName: fullName.trim(),
+        displayName: displayName.trim(),
+      });
+      setProfile(updated);
+      setOk("Saved.");
+    } catch (e) {
+      setErr(e?.message || "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onPickImage = async (file) => {
+    setSaving(true);
+    setErr("");
+    setOk("");
+    try {
+      if (!file) return;
+      if (!me?.$id) throw new Error("No session");
+
+      // upload + update profile.profileImage (stored value handled by lib/api)
+      const updated = await uploadProfilePicture(me.$id, file);
+      setProfile(updated);
+      setOk("Profile picture updated.");
+    } catch (e) {
+      setErr(e?.message || "Upload failed.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (!me) return null;
 
   return (
-    <UnverifiedEmailGate>
-      <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold">Account Controls</h1>
-          <p className="text-sm text-slate-400">Identity, risk, and configuration.</p>
-        </div>
-
-        {err ? (
-          <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-200">
-            {err}
+    <AppShellPro rightSlot={<AvatarModal profile={profile} />}>
+      <UnverifiedEmailGate>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-100">Settings</h1>
+            <p className="text-sm text-slate-400">Account profile and controls.</p>
           </div>
-        ) : null}
 
-        <MetricStrip items={metrics} />
+          {err ? (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+              {err}
+            </div>
+          ) : null}
+          {ok ? (
+            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+              {ok}
+            </div>
+          ) : null}
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-          <div className="text-sm font-semibold text-slate-200">Profile Snapshot</div>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <Field k="Full Name" v={profile?.fullName || me?.name || "—"} />
-            <Field k="Email" v={profile?.email || me?.email || "—"} />
-            <Field k="Display Name" v={profile?.displayName || "—"} />
-            <Field k="Website" v={profile?.websiteUrl || "—"} />
+          <MetricStrip items={metrics} />
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+            <div className="text-sm font-semibold text-slate-200">Profile</div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <div className="text-[11px] uppercase tracking-widest text-slate-500">Full name</div>
+                <input
+                  className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm outline-none focus:border-amber-500/40"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <div className="text-[11px] uppercase tracking-widest text-slate-500">Display name</div>
+                <input
+                  className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm outline-none focus:border-amber-500/40"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-[11px] uppercase tracking-widest text-slate-500">
+                Profile picture
+              </div>
+              <label className="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 hover:bg-slate-900/60 transition cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => onPickImage(e.target.files?.[0] || null)}
+                />
+                Select image
+              </label>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={saveProfile}
+                className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-sm text-amber-200 hover:bg-amber-500/15 transition disabled:opacity-60"
+              >
+                {saving ? "Saving…" : "Save changes"}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </UnverifiedEmailGate>
-  );
-}
-
-function Field({ k, v }) {
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/35 p-3">
-      <div className="text-[11px] uppercase tracking-wide text-slate-500">{k}</div>
-      <div className="mt-1 text-sm text-slate-100 break-all">{v}</div>
-    </div>
+      </UnverifiedEmailGate>
+    </AppShellPro>
   );
 }
