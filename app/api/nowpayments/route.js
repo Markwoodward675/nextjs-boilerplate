@@ -1,70 +1,51 @@
-import { NextResponse } from "next/server";
+export const runtime = "nodejs";
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
 
 export async function POST(req) {
   try {
+    const body = await req.json();
+    const { price_amount, price_currency = "usd", pay_currency = "usdttrc20", order_id } = body || {};
+
+    if (!price_amount || Number(price_amount) <= 0) {
+      return json({ ok: false, error: "Invalid amount" }, 400);
+    }
+
     const apiKey = process.env.NOWPAYMENTS_API_KEY;
+    if (!apiKey) return json({ ok: false, error: "NOWPAYMENTS_API_KEY missing" }, 500);
 
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "NOWPayments is not configured on the server." },
-        { status: 500 }
-      );
-    }
+    const ipn_callback_url = process.env.NOWPAYMENTS_IPN_CALLBACK_URL;
+    const success_url = process.env.NOWPAYMENTS_SUCCESS_URL;
+    const cancel_url = process.env.NOWPAYMENTS_CANCEL_URL;
 
-    const { amount, currency } = await req.json();
-
-    if (!amount || !currency) {
-      return NextResponse.json(
-        { error: "Amount and currency are required." },
-        { status: 400 }
-      );
-    }
-
-    // Build basic invoice body
-    const body = {
-      price_amount: amount,
-      price_currency: currency,
-      pay_currency: "btc",
-      order_id: `dep_${Date.now()}`,
-      order_description: "Day Trader wallet deposit"
-    };
-
-    // Only add these if they are actually set (so NOWPayments doesn't see empty strings)
-    if (process.env.NOWPAYMENTS_SUCCESS_URL) {
-      body.success_url = process.env.NOWPAYMENTS_SUCCESS_URL;
-    }
-    if (process.env.NOWPAYMENTS_CANCEL_URL) {
-      body.cancel_url = process.env.NOWPAYMENTS_CANCEL_URL;
-    }
-    if (process.env.NOWPAYMENTS_IPN_URL) {
-      body.ipn_callback_url = process.env.NOWPAYMENTS_IPN_URL;
-    }
-
-    const res = await fetch("https://api.nowpayments.io/v1/invoice", {
+    const r = await fetch("https://api.nowpayments.io/v1/invoice", {
       method: "POST",
       headers: {
+        "content-type": "application/json",
         "x-api-key": apiKey,
-        "Content-Type": "application/json"
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        price_amount: Number(price_amount),
+        price_currency,
+        pay_currency,
+        order_id: order_id || `dt_${Date.now()}`,
+        order_description: "Day Trader funding",
+        ipn_callback_url,
+        success_url,
+        cancel_url,
+      }),
     });
 
-    const data = await res.json();
+    const j = await r.json();
+    if (!r.ok) return json({ ok: false, error: j?.message || "NOWPayments failed", raw: j }, 400);
 
-    if (!res.ok) {
-      console.error("NOWPayments error:", data);
-      return NextResponse.json(
-        { error: data?.message || "NOWPayments API error" },
-        { status: res.status }
-      );
-    }
-
-    return NextResponse.json(data, { status: 200 });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json(
-      { error: "Unexpected error while creating NOWPayments invoice." },
-      { status: 500 }
-    );
+    return json({ ok: true, invoice: j });
+  } catch (e) {
+    return json({ ok: false, error: e?.message || "Bad request" }, 400);
   }
 }
