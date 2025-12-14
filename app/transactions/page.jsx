@@ -1,159 +1,102 @@
-// app/transactions/page.jsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentUser, getUserTransactions } from "../../lib/api";
 import UnverifiedEmailGate from "../../components/UnverifiedEmailGate";
+import { getCurrentUser, getUserTransactions } from "../../lib/api";
 
-function useProtectedUser() {
+function money(n) {
+  return `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
+export default function TransactionsPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [checking, setChecking] = useState(true);
+  const [txs, setTxs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    async function run() {
+
+    (async () => {
       try {
         const u = await getCurrentUser();
-        if (!u) {
-          router.replace("/signin");
-          return;
-        }
-        if (!cancelled) setUser(u);
+        if (!u) return router.replace("/signin");
+        if (cancelled) return;
+
+        setUser(u);
+
+        const t = await getUserTransactions(u.$id);
+        if (!cancelled) setTxs(t || []);
+      } catch (e) {
+        if (!cancelled) setErr(e?.message || "Failed to load transactions.");
       } finally {
-        if (!cancelled) setChecking(false);
+        if (!cancelled) setLoading(false);
       }
-    }
-    run();
+    })();
+
     return () => {
       cancelled = true;
     };
   }, [router]);
 
-  return { user, checking };
-}
+  const sorted = useMemo(() => {
+    return [...(txs || [])].sort(
+      (a, b) =>
+        new Date(b.createdAt || b.$createdAt).getTime() -
+        new Date(a.createdAt || a.$createdAt).getTime()
+    );
+  }, [txs]);
 
-export default function TransactionsPage() {
-  const { user, checking } = useProtectedUser();
-  const [transactions, setTransactions] = useState([]);
-  const [loadingData, setLoadingData] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const txs = await getUserTransactions(user.$id);
-        if (!cancelled) setTransactions(txs || []);
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err?.message ||
-              "Unable to load transactions. Please try again shortly."
-          );
-        }
-      } finally {
-        if (!cancelled) setLoadingData(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
-
-  if (checking || loadingData) {
+  if (loading) {
     return (
       <main className="min-h-[70vh] flex items-center justify-center bg-slate-950">
         <div className="text-sm text-slate-300">Loading transactions…</div>
       </main>
     );
   }
-
   if (!user) return null;
 
-  const emailVerified =
-    user.emailVerification || user?.prefs?.emailVerification;
-  if (!emailVerified) {
-    return <UnverifiedEmailGate email={user.email} />;
-  }
-
-  const sorted = [...transactions].sort(
-    (a, b) =>
-      new Date(b.createdAt || b.$createdAt) -
-      new Date(a.createdAt || a.$createdAt)
-  );
-
   return (
-    <main className="min-h-[80vh] bg-slate-950 px-4 py-6 text-slate-50">
-      <div className="mx-auto max-w-5xl space-y-4">
+    <UnverifiedEmailGate>
+      <main className="space-y-4">
         <header>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Transactions
-          </h1>
+          <h1 className="text-2xl font-semibold">Transactions</h1>
           <p className="text-sm text-slate-400">
-            Full history of deposits, withdrawals, investments, trades, and
-            bonus credits.
+            Activity log for deposits, withdrawals, trades, investments, and bonuses.
           </p>
         </header>
 
-        {error && (
+        {err && (
           <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-            {error}
+            {err}
           </div>
         )}
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
           {sorted.length === 0 ? (
-            <p className="text-sm text-slate-400">
-              No transactions yet. Once you deposit, invest, or trade, the full
-              history will appear here.
-            </p>
+            <p className="text-sm text-slate-400">No transactions yet.</p>
           ) : (
-            <div className="space-y-2 text-xs">
-              {sorted.map((tx) => (
+            <div className="space-y-2">
+              {sorted.map((t) => (
                 <div
-                  key={tx.$id}
-                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950 px-3 py-2"
+                  key={t.$id}
+                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm"
                 >
                   <div>
-                    <p className="font-medium capitalize text-slate-100">
-                      {tx.type} • {tx.status || "completed"}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {tx.createdAt || tx.$createdAt}
-                    </p>
-                    {tx.meta && (
-                      <p className="text-[11px] text-slate-500">{tx.meta}</p>
-                    )}
+                    <div className="font-medium">{t.title || t.meta || t.category || "Transaction"}</div>
+                    <div className="text-xs text-slate-500">
+                      {t.category || t.type || "general"} • {t.createdAt || t.$createdAt}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p
-                      className={`text-sm font-semibold ${
-                        tx.type === "withdraw"
-                          ? "text-rose-300"
-                          : "text-emerald-300"
-                      }`}
-                    >
-                      {tx.type === "withdraw" ? "-" : "+"}$
-                      {Number(tx.amount || 0).toLocaleString(undefined, {
-                        maximumFractionDigits: 2,
-                      })}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {tx.currency || "USD"}
-                    </p>
-                  </div>
+                  <div className="font-semibold text-emerald-300">{money(t.amount)}</div>
                 </div>
               ))}
             </div>
           )}
         </section>
-      </div>
-    </main>
+      </main>
+    </UnverifiedEmailGate>
   );
 }
