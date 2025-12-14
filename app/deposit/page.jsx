@@ -1,141 +1,135 @@
-// app/deposit/page.jsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentUser, getUserDeposit } from "../../lib/api";
 import UnverifiedEmailGate from "../../components/UnverifiedEmailGate";
+import { getCurrentUser, getUserWallets, getUserTransactions } from "../../lib/api";
 
-function useProtectedUser() {
+function money(n) {
+  return `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
+export default function DepositPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [checking, setChecking] = useState(true);
+  const [wallets, setWallets] = useState([]);
+  const [txs, setTxs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    async function run() {
+
+    (async () => {
       try {
         const u = await getCurrentUser();
-        if (!u) {
-          router.replace("/signin");
-          return;
+        if (!u) return router.replace("/signin");
+        if (cancelled) return;
+
+        setUser(u);
+
+        const [ws, t] = await Promise.all([
+          getUserWallets(u.$id),
+          getUserTransactions(u.$id),
+        ]);
+
+        if (!cancelled) {
+          setWallets(ws || []);
+          setTxs(t || []);
         }
-        if (!cancelled) setUser(u);
+      } catch (e) {
+        if (!cancelled) setErr(e?.message || "Failed to load deposit page.");
       } finally {
-        if (!cancelled) setChecking(false);
+        if (!cancelled) setLoading(false);
       }
-    }
-    run();
+    })();
+
     return () => {
       cancelled = true;
     };
   }, [router]);
 
-  return { user, checking };
-}
+  const mainWallet = useMemo(
+    () => (wallets || []).find((w) => w.currencyType === "main") || null,
+    [wallets]
+  );
 
-export default function DepositPage() {
-  const { user, checking } = useProtectedUser();
-  const [mainWallet, setMainWallet] = useState(null);
-  const [loadingData, setLoadingData] = useState(true);
-  const [error, setError] = useState("");
+  const recentDeposits = useMemo(() => {
+    return (txs || [])
+      .filter((t) => t.category === "deposit" || t.type === "deposit")
+      .slice(0, 10);
+  }, [txs]);
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    async function load() {
-      try {
-        const wallets = await getUserWallets(user.$id);
-        if (!cancelled) {
-          setMainWallet((wallets || []).find((w) => w.type === "main") || null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err?.message ||
-              "Unable to load wallet balances. Please try again shortly."
-          );
-        }
-      } finally {
-        if (!cancelled) setLoadingData(false);
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
-
-  if (checking || loadingData) {
+  if (loading) {
     return (
       <main className="min-h-[70vh] flex items-center justify-center bg-slate-950">
-        <div className="text-sm text-slate-300">Preparing deposit screen…</div>
+        <div className="text-sm text-slate-300">Loading deposit…</div>
       </main>
     );
   }
-
   if (!user) return null;
 
-  const emailVerified =
-    user.emailVerification || user?.prefs?.emailVerification;
-  if (!emailVerified) {
-    return <UnverifiedEmailGate email={user.email} />;
-  }
-
   return (
-    <main className="min-h-[80vh] bg-slate-950 px-4 py-6 text-slate-50">
-      <div className="mx-auto max-w-3xl space-y-4">
+    <UnverifiedEmailGate>
+      <main className="space-y-4">
         <header>
-          <h1 className="text-2xl font-semibold tracking-tight">Deposit</h1>
+          <h1 className="text-2xl font-semibold">Deposit</h1>
           <p className="text-sm text-slate-400">
-            Add funds to your educational Day Trader wallet using your connected
-            deposit methods.
+            Add simulated funds to your main wallet. (Payment provider wiring can be added next.)
           </p>
         </header>
 
-        {error && (
+        {err && (
           <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-            {error}
+            {err}
           </div>
         )}
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-          <h2 className="text-sm font-medium text-slate-200 mb-1">
-            Current main wallet balance
-          </h2>
-          {mainWallet ? (
-            <p className="text-2xl font-semibold">
-              $
-              {Number(mainWallet.balance || 0).toLocaleString(undefined, {
-                maximumFractionDigits: 2,
-              })}
-            </p>
-          ) : (
-            <p className="text-sm text-slate-400">
-              Main wallet not found yet – it will be created automatically after
-              signup.
-            </p>
-          )}
-          <p className="text-[11px] text-slate-500 mt-2">
-            Deposits and withdrawals in this app are for simulation / education
-            and do not connect to a real broker or bank account.
-          </p>
-        </section>
+        <section className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
+            <div className="text-sm font-semibold">Main wallet</div>
+            <div className="mt-2 text-3xl font-semibold">{money(mainWallet?.balance)}</div>
+            <div className="mt-1 text-xs text-slate-500">currencyType: main</div>
+          </div>
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-          <h2 className="text-sm font-medium text-slate-200 mb-2">
-            Deposit methods
-          </h2>
-          <p className="text-sm text-slate-400 mb-3">
-            This is where you plug in your NOWPayments or other gateways.
-            Replace this placeholder with your actual deposit form / integration
-            component.
-          </p>
-          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950 text-xs text-slate-500">
-            Deposit form / gateway integration goes here.
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+            <div className="text-sm font-semibold">Deposit method</div>
+            <p className="mt-2 text-sm text-slate-400">
+              This is currently a placeholder UI (so the page isn’t blank).
+              If you want NOWPayments / card simulation, I can add it next.
+            </p>
+            <button
+              type="button"
+              className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 hover:bg-amber-500/15 transition"
+              onClick={() => alert("Next step: implement simulated deposit write → transactions + wallet update.")}
+            >
+              Simulate deposit (coming next)
+            </button>
           </div>
         </section>
-      </div>
-    </main>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+          <h2 className="text-sm font-semibold mb-2">Recent deposits</h2>
+          {recentDeposits.length === 0 ? (
+            <p className="text-sm text-slate-400">No deposits yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {recentDeposits.map((t) => (
+                <div
+                  key={t.$id}
+                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm"
+                >
+                  <div>
+                    <div className="font-medium">{t.title || "Deposit"}</div>
+                    <div className="text-xs text-slate-500">{t.createdAt || t.$createdAt}</div>
+                  </div>
+                  <div className="font-semibold text-emerald-300">{money(t.amount)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+    </UnverifiedEmailGate>
   );
 }
