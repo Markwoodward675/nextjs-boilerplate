@@ -1,111 +1,94 @@
-// app/settings/page.jsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentUser, logoutUser } from "../../lib/api";
 import UnverifiedEmailGate from "../../components/UnverifiedEmailGate";
+import { getCurrentUser, getUserProfile } from "../../lib/api";
 
-function useProtectedUser() {
+export default function SettingsPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [checking, setChecking] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    async function run() {
+
+    (async () => {
       try {
         const u = await getCurrentUser();
-        if (!u) {
-          router.replace("/signin");
-          return;
-        }
-        if (!cancelled) setUser(u);
+        if (!u) return router.replace("/signin");
+        if (cancelled) return;
+
+        setUser(u);
+
+        const p = await getUserProfile(u.$id);
+        if (!cancelled) setProfile(p);
+      } catch (e) {
+        if (!cancelled) setErr(e?.message || "Failed to load settings.");
       } finally {
-        if (!cancelled) setChecking(false);
+        if (!cancelled) setLoading(false);
       }
-    }
-    run();
+    })();
+
     return () => {
       cancelled = true;
     };
   }, [router]);
 
-  return { user, checking };
-}
-
-export default function SettingsPage() {
-  const router = useRouter();
-  const { user, checking } = useProtectedUser();
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  const handleLogout = async () => {
-    setLoggingOut(true);
-    try {
-      await logoutUser();
-      router.replace("/signin");
-    } finally {
-      setLoggingOut(false);
-    }
-  };
-
-  if (checking) {
+  if (loading) {
     return (
       <main className="min-h-[70vh] flex items-center justify-center bg-slate-950">
         <div className="text-sm text-slate-300">Loading settings…</div>
       </main>
     );
   }
-
   if (!user) return null;
 
-  const emailVerified =
-    user.emailVerification || user?.prefs?.emailVerification;
-  if (!emailVerified) {
-    return <UnverifiedEmailGate email={user.email} />;
-  }
-
   return (
-    <main className="min-h-[80vh] bg-slate-950 px-4 py-6 text-slate-50">
-      <div className="mx-auto max-w-3xl space-y-4">
+    <UnverifiedEmailGate>
+      <main className="space-y-4">
         <header>
-          <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-sm text-slate-400">
-            Manage your account details for your Day Trader profile.
-          </p>
+          <h1 className="text-2xl font-semibold">Settings</h1>
+          <p className="text-sm text-slate-400">Manage your profile info (read-only for now).</p>
         </header>
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 space-y-3 text-sm">
-          <div>
-            <p className="text-xs uppercase text-slate-400 mb-1">Full name</p>
-            <p className="text-slate-100">{user.name || "Not set"}</p>
+        {err && (
+          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
+            {err}
           </div>
-          <div>
-            <p className="text-xs uppercase text-slate-400 mb-1">Email</p>
-            <p className="text-slate-100 break-all">{user.email}</p>
-          </div>
-          <div>
-            <p className="text-xs uppercase text-slate-400 mb-1">
-              Email status
-            </p>
-            <p className="text-emerald-300 text-sm">Verified</p>
+        )}
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+              <div className="text-xs text-slate-500">Full name</div>
+              <div className="text-sm text-slate-100">{profile?.fullName || user?.name || "—"}</div>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+              <div className="text-xs text-slate-500">Email</div>
+              <div className="text-sm text-slate-100">{profile?.email || user?.email || "—"}</div>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+              <div className="text-xs text-slate-500">Username</div>
+              <div className="text-sm text-slate-100">{profile?.username || "—"}</div>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+              <div className="text-xs text-slate-500">KYC status</div>
+              <div className="text-sm text-slate-100">{profile?.kycStatus || "not_submitted"}</div>
+            </div>
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-          <h2 className="text-sm font-medium text-slate-200 mb-2">
-            Security & sign-out
-          </h2>
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={loggingOut}
-            className="rounded-xl border border-rose-500/60 bg-rose-500/10 px-4 py-2 text-sm font-medium text-rose-100 hover:bg-rose-500/20 transition disabled:opacity-60"
-          >
-            {loggingOut ? "Signing out…" : "Sign out of this device"}
-          </button>
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+          <h2 className="text-sm font-semibold">Next step</h2>
+          <p className="mt-2 text-sm text-slate-400">
+            If you want, I’ll add an “Edit profile” form that updates your <code className="text-slate-200">user_profile</code>
+            document (docId = user.$id) safely.
+          </p>
         </section>
-      </div>
-    </main>
+      </main>
+    </UnverifiedEmailGate>
   );
 }
