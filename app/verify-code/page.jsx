@@ -33,8 +33,6 @@ export default function VerifyCodePage() {
 
   const [info, setInfo] = useState("");
   const [error, setError] = useState("");
-
-  // DEV-only: if your api.js fallback returns devCode, we show it
   const [devCode, setDevCode] = useState("");
 
   const email = useMemo(() => user?.email || "", [user]);
@@ -42,7 +40,7 @@ export default function VerifyCodePage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function init() {
+    const init = async () => {
       try {
         const u = await getCurrentUser();
 
@@ -51,11 +49,9 @@ export default function VerifyCodePage() {
           return;
         }
 
-        // Ensure profile/wallets/bonus exist before code flows
         try {
           await ensureUserBootstrap(u);
         } catch (e) {
-          // Keep the user signed in, but show a helpful message
           const msg = getErrorMessage(e, "Bootstrap failed.");
           if (!cancelled) {
             setError(
@@ -70,7 +66,7 @@ export default function VerifyCodePage() {
       } finally {
         if (!cancelled) setChecking(false);
       }
-    }
+    };
 
     init();
 
@@ -79,7 +75,7 @@ export default function VerifyCodePage() {
     };
   }, [router]);
 
-  async function handleSendCode() {
+  const handleSendCode = async () => {
     if (!user) return;
 
     setSending(true);
@@ -88,16 +84,13 @@ export default function VerifyCodePage() {
     setDevCode("");
 
     try {
-      // Extra safety: ensures profile exists (handles refresh)
       await ensureUserBootstrap(user);
-
       const res = await requestVerificationCode();
 
       setInfo(
         "A 6-digit verification code has been generated. In production, you would receive this by email or SMS."
       );
 
-      // ✅ api.js returns devCode in DEV fallback
       if (res?.devCode) setDevCode(String(res.devCode));
     } catch (err) {
       setError(
@@ -109,9 +102,9 @@ export default function VerifyCodePage() {
     } finally {
       setSending(false);
     }
-  }
+  };
 
-  async function handleVerify(e) {
+  const handleVerify = async (e) => {
     e.preventDefault();
     if (!user) return;
 
@@ -135,7 +128,7 @@ export default function VerifyCodePage() {
     } finally {
       setVerifying(false);
     }
-  }
+  };
 
   if (checking) {
     return (
@@ -152,7 +145,6 @@ export default function VerifyCodePage() {
   return (
     <main className="min-h-[100vh] bg-slate-950 flex items-center justify-center px-4">
       <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 p-6">
-        {/* Header */}
         <div className="mb-4 flex items-center gap-3">
           <div className="h-9 w-9 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-sm font-semibold text-emerald-300">
             DT
