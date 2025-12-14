@@ -43,12 +43,12 @@ export default function VerifyCodePage() {
     const init = async () => {
       try {
         const u = await getCurrentUser();
-
         if (!u) {
           router.replace("/signin");
           return;
         }
 
+        // Ensure profile/wallets/alerts exist before verification flows
         try {
           await ensureUserBootstrap(u);
         } catch (e) {
@@ -56,8 +56,9 @@ export default function VerifyCodePage() {
           if (!cancelled) {
             setError(
               msg +
-                "\n\nIf this says NOT AUTHORIZED: Appwrite Console → DB → Collections (user_profile, wallets, alerts) → Permissions: Create/Read/Update/Delete = Users.\n" +
-                'If this says Missing required attribute like "username": add it in code or make it optional in Appwrite.'
+                "\n\nFixes:\n" +
+                "1) Appwrite Console → DB → Collections (user_profile, wallets, alerts) → Permissions: Create/Read/Update/Delete = Users.\n" +
+                '2) If you see missing required attribute like "username", make it optional or ensure bootstrap sets it.'
             );
           }
         }
@@ -85,12 +86,13 @@ export default function VerifyCodePage() {
 
     try {
       await ensureUserBootstrap(user);
-      const res = await requestVerificationCode();
 
+      const res = await requestVerificationCode();
       setInfo(
         "A 6-digit verification code has been generated. In production, you would receive this by email or SMS."
       );
 
+      // DEV fallback from api.js returns devCode
       if (res?.devCode) setDevCode(String(res.devCode));
     } catch (err) {
       setError(
