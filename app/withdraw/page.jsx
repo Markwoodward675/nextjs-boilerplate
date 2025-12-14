@@ -1,139 +1,135 @@
-// app/withdraw/page.jsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentUser, getUserWallets } from "../../lib/api";
 import UnverifiedEmailGate from "../../components/UnverifiedEmailGate";
+import { getCurrentUser, getUserWallets, getUserTransactions } from "../../lib/api";
 
-function useProtectedUser() {
+function money(n) {
+  return `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
+export default function WithdrawPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [checking, setChecking] = useState(true);
+  const [wallets, setWallets] = useState([]);
+  const [txs, setTxs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    async function run() {
+
+    (async () => {
       try {
         const u = await getCurrentUser();
-        if (!u) {
-          router.replace("/signin");
-          return;
+        if (!u) return router.replace("/signin");
+        if (cancelled) return;
+
+        setUser(u);
+
+        const [ws, t] = await Promise.all([
+          getUserWallets(u.$id),
+          getUserTransactions(u.$id),
+        ]);
+
+        if (!cancelled) {
+          setWallets(ws || []);
+          setTxs(t || []);
         }
-        if (!cancelled) setUser(u);
+      } catch (e) {
+        if (!cancelled) setErr(e?.message || "Failed to load withdraw page.");
       } finally {
-        if (!cancelled) setChecking(false);
+        if (!cancelled) setLoading(false);
       }
-    }
-    run();
+    })();
+
     return () => {
       cancelled = true;
     };
   }, [router]);
 
-  return { user, checking };
-}
+  const mainWallet = useMemo(
+    () => (wallets || []).find((w) => w.currencyType === "main") || null,
+    [wallets]
+  );
 
-export default function WithdrawPage() {
-  const { user, checking } = useProtectedUser();
-  const [mainWallet, setMainWallet] = useState(null);
-  const [loadingData, setLoadingData] = useState(true);
-  const [error, setError] = useState("");
+  const recentWithdrawals = useMemo(() => {
+    return (txs || [])
+      .filter((t) => t.category === "withdraw" || t.type === "withdraw")
+      .slice(0, 10);
+  }, [txs]);
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    async function load() {
-      try {
-        const wallets = await getUserWallets(user.$id);
-        if (!cancelled) {
-          setMainWallet((wallets || []).find((w) => w.type === "main") || null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err?.message ||
-              "Unable to load wallet balances. Please try again shortly."
-          );
-        }
-      } finally {
-        if (!cancelled) setLoadingData(false);
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
-
-  if (checking || loadingData) {
+  if (loading) {
     return (
       <main className="min-h-[70vh] flex items-center justify-center bg-slate-950">
-        <div className="text-sm text-slate-300">Preparing withdrawal…</div>
+        <div className="text-sm text-slate-300">Loading withdraw…</div>
       </main>
     );
   }
-
   if (!user) return null;
 
-  const emailVerified =
-    user.emailVerification || user?.prefs?.emailVerification;
-  if (!emailVerified) {
-    return <UnverifiedEmailGate email={user.email} />;
-  }
-
   return (
-    <main className="min-h-[80vh] bg-slate-950 px-4 py-6 text-slate-50">
-      <div className="mx-auto max-w-3xl space-y-4">
+    <UnverifiedEmailGate>
+      <main className="space-y-4">
         <header>
-          <h1 className="text-2xl font-semibold tracking-tight">Withdraw</h1>
+          <h1 className="text-2xl font-semibold">Withdraw</h1>
           <p className="text-sm text-slate-400">
-            Move funds out of your educational wallet to simulate cashing out.
+            Withdrawals are simulated. Real payout integrations can be added later.
           </p>
         </header>
 
-        {error && (
+        {err && (
           <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-            {error}
+            {err}
           </div>
         )}
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-          <h2 className="text-sm font-medium text-slate-200 mb-1">
-            Available balance (main wallet)
-          </h2>
-          {mainWallet ? (
-            <p className="text-2xl font-semibold">
-              $
-              {Number(mainWallet.balance || 0).toLocaleString(undefined, {
-                maximumFractionDigits: 2,
-              })}
-            </p>
-          ) : (
-            <p className="text-sm text-slate-400">
-              Main wallet not found yet – it will be created automatically after
-              signup.
-            </p>
-          )}
-          <p className="text-[11px] text-slate-500 mt-2">
-            For educational purposes only — these withdrawals do not connect to
-            a real bank or broker.
-          </p>
-        </section>
+        <section className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
+            <div className="text-sm font-semibold">Main wallet</div>
+            <div className="mt-2 text-3xl font-semibold">{money(mainWallet?.balance)}</div>
+            <div className="mt-1 text-xs text-slate-500">currencyType: main</div>
+          </div>
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-          <h2 className="text-sm font-medium text-slate-200 mb-2">
-            Withdrawal request form
-          </h2>
-          <p className="text-sm text-slate-400 mb-3">
-            Replace this placeholder with your withdrawal logic (manual review,
-            NOWPayments, or any simulated payout workflow).
-          </p>
-          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950 text-xs text-slate-500">
-            Withdrawal form / workflow goes here.
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+            <div className="text-sm font-semibold">Withdraw request</div>
+            <p className="mt-2 text-sm text-slate-400">
+              Placeholder UI to prevent blank pages. Next step can be a simulated withdraw
+              that writes to transactions + updates wallet balance.
+            </p>
+            <button
+              type="button"
+              className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 hover:bg-amber-500/15 transition"
+              onClick={() => alert("Next step: implement simulated withdraw write → transactions + wallet update.")}
+            >
+              Simulate withdraw (coming next)
+            </button>
           </div>
         </section>
-      </div>
-    </main>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+          <h2 className="text-sm font-semibold mb-2">Recent withdrawals</h2>
+          {recentWithdrawals.length === 0 ? (
+            <p className="text-sm text-slate-400">No withdrawals yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {recentWithdrawals.map((t) => (
+                <div
+                  key={t.$id}
+                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm"
+                >
+                  <div>
+                    <div className="font-medium">{t.title || "Withdraw"}</div>
+                    <div className="text-xs text-slate-500">{t.createdAt || t.$createdAt}</div>
+                  </div>
+                  <div className="font-semibold text-emerald-300">{money(t.amount)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+    </UnverifiedEmailGate>
   );
 }
