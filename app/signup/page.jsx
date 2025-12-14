@@ -1,6 +1,7 @@
 // app/signup/page.jsx
 "use client";
 
+import { bootstrapUserCountry } from "../../lib/api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -257,6 +258,7 @@ export default function SignUpPage() {
             Sign in
           </button>
           .
+          await bootstrapUserCountry(user.$id);
         </p>
       </div>
     </main>
