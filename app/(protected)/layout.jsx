@@ -1,5 +1,5 @@
-import AppShell from "../../components/AppShell";
+import AppShellPro from "../../components/AppShellPro";
 
 export default function ProtectedLayout({ children }) {
-  return <AppShell>{children}</AppShell>;
+  return <AppShellPro>{children}</AppShellPro>;
 }
