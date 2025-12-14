@@ -1,80 +1,62 @@
-// app/giftcards/sell/page.jsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCurrentUser } from "../../../lib/api";
 import UnverifiedEmailGate from "../../../components/UnverifiedEmailGate";
+import { getCurrentUser } from "../../../lib/api";
 
-function useProtectedUser() {
+export default function GiftcardsSellPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [checking, setChecking] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    async function run() {
-      try {
-        const u = await getCurrentUser();
-        if (!u) {
-          router.replace("/signin");
-          return;
-        }
-        if (!cancelled) setUser(u);
-      } finally {
-        if (!cancelled) setChecking(false);
+
+    (async () => {
+      const u = await getCurrentUser();
+      if (!u) return router.replace("/signin");
+      if (!cancelled) {
+        setUser(u);
+        setLoading(false);
       }
-    }
-    run();
-    return () => {
-      cancelled = true;
-    };
+    })();
+
+    return () => (cancelled = true);
   }, [router]);
 
-  return { user, checking };
-}
-
-export default function SellGiftcardsPage() {
-  const { user, checking } = useProtectedUser();
-
-  if (checking) {
+  if (loading) {
     return (
       <main className="min-h-[70vh] flex items-center justify-center bg-slate-950">
-        <div className="text-sm text-slate-300">Loading gift card sales…</div>
+        <div className="text-sm text-slate-300">Loading giftcards…</div>
       </main>
     );
   }
-
   if (!user) return null;
 
-  const emailVerified =
-    user.emailVerification || user?.prefs?.emailVerification;
-  if (!emailVerified) {
-    return <UnverifiedEmailGate email={user.email} />;
-  }
-
   return (
-    <main className="min-h-[80vh] bg-slate-950 px-4 py-6 text-slate-50">
-      <div className="mx-auto max-w-4xl space-y-4">
+    <UnverifiedEmailGate>
+      <main className="space-y-4">
         <header>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Sell gift cards
-          </h1>
+          <h1 className="text-2xl font-semibold">Giftcards • Sell</h1>
           <p className="text-sm text-slate-400">
-            Simulate selling unused gift cards into your Day Trader wallet.
+            Submit a demo sell request (upload & pricing logic can be added next).
           </p>
         </header>
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-          <p className="text-sm text-slate-400 mb-3">
-            Replace this placeholder with your gift card selling workflow
-            (upload code, quote, review, and payout simulation).
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+          <div className="text-sm font-semibold">Sell request (demo)</div>
+          <p className="mt-2 text-sm text-slate-400">
+            Next step: add upload, validation, and create a transaction record.
           </p>
-          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950 text-xs text-slate-500">
-            Gift card selling form goes here.
-          </div>
+          <button
+            className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 hover:bg-amber-500/15 transition"
+            onClick={() => alert("Next step: implement giftcard sell request → transactions + admin review queue.")}
+          >
+            Create sell request (coming next)
+          </button>
         </section>
-      </div>
-    </main>
+      </main>
+    </UnverifiedEmailGate>
   );
 }
