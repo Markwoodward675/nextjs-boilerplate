@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import UnverifiedEmailGate from "../../../components/UnverifiedEmailGate";
 import MetricStrip from "../../../components/MetricStrip";
 import BlotterTable from "../../../components/BlotterTable";
-import { getCurrentUser, getUserTransactions } from "../../../lib/api";
+import AvatarModal from "../../../components/AvatarModal";
+import AppShellPro from "../../../components/AppShellPro";
+import { getCurrentUser, getUserTransactions, getUserProfile } from "../../../lib/api";
 
 export default function TransactionsPage() {
   const router = useRouter();
   const [me, setMe] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [txs, setTxs] = useState([]);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
@@ -23,10 +26,17 @@ export default function TransactionsPage() {
         if (cancel) return;
         setMe(u);
 
-        const t = await getUserTransactions(u.$id);
-        if (!cancel) setTxs(t || []);
+        const [p, t] = await Promise.all([
+          getUserProfile(u.$id).catch(() => null),
+          getUserTransactions(u.$id),
+        ]);
+
+        if (!cancel) {
+          setProfile(p);
+          setTxs(t || []);
+        }
       } catch (e) {
-        if (!cancel) setErr(e?.message || "Unable to load blotter.");
+        if (!cancel) setErr(e?.message || "Unable to load transactions.");
       } finally {
         if (!cancel) setLoading(false);
       }
@@ -34,50 +44,52 @@ export default function TransactionsPage() {
     return () => { cancel = true; };
   }, [router]);
 
-  const sorted = useMemo(() => {
-    return [...(txs || [])].sort((a, b) => {
-      const da = new Date(a.createdAt || a.$createdAt).getTime() || 0;
-      const db = new Date(b.createdAt || b.$createdAt).getTime() || 0;
-      return db - da;
-    }).slice(0, 50);
+  const rows = useMemo(() => {
+    return [...(txs || [])]
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt || b.$createdAt).getTime() -
+          new Date(a.createdAt || a.$createdAt).getTime()
+      )
+      .slice(0, 50);
   }, [txs]);
 
   const counts = useMemo(() => {
-    const c = { deposit: 0, withdraw: 0, trade: 0, invest: 0 };
-    (sorted || []).forEach((t) => {
-      const k = t.category || t.type;
-      if (c[k] != null) c[k] += 1;
+    const c = {};
+    rows.forEach((t) => {
+      const k = (t.category || t.type || "other").toLowerCase();
+      c[k] = (c[k] || 0) + 1;
     });
     return c;
-  }, [sorted]);
+  }, [rows]);
 
   const metrics = [
-    { label: "Records", value: String(sorted.length), sub: "last 50" },
-    { label: "Deposits", value: String(counts.deposit), sub: "ledger" },
-    { label: "Trades", value: String(counts.trade), sub: "executions" },
-    { label: "State", value: err ? "Degraded" : "Normal", sub: err ? "source error" : "ok" },
+    { label: "Records", value: String(rows.length), sub: "Last 50" },
+    { label: "Deposits", value: String(counts.deposit || 0), sub: "Count" },
+    { label: "Withdrawals", value: String(counts.withdraw || 0), sub: "Count" },
+    { label: "Investments", value: String(counts.invest || 0), sub: "Count" },
   ];
 
-  if (loading) return <div className="text-sm text-slate-400">Loading blotter…</div>;
+  if (loading) return <div className="text-sm text-slate-400">Loading…</div>;
   if (!me) return null;
 
   return (
-    <UnverifiedEmailGate>
-      <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold">Execution Ledger</h1>
-          <p className="text-sm text-slate-400">Unified activity blotter across modules.</p>
-        </div>
-
-        {err ? (
-          <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-200">
-            {err}
+    <AppShellPro rightSlot={<AvatarModal profile={profile} />}>
+      <UnverifiedEmailGate>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-100">Transactions</h1>
+            <p className="text-sm text-slate-400">Executed activity across accounts.</p>
           </div>
-        ) : null}
 
-        <MetricStrip items={metrics} />
-        <BlotterTable rows={sorted} title="Unified Blotter" />
-      </div>
-    </UnverifiedEmailGate>
+          {err ? (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">{err}</div>
+          ) : null}
+
+          <MetricStrip items={metrics} />
+          <BlotterTable title="Executed Transactions" rows={rows} />
+        </div>
+      </UnverifiedEmailGate>
+    </AppShellPro>
   );
 }
