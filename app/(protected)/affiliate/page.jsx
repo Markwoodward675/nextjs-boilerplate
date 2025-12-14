@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import UnverifiedEmailGate from "../../../components/UnverifiedEmailGate";
-import MetricStrip from "../../../components/MetricStrip";
-import { getCurrentUser, getAffiliateOverview } from "../../../lib/api";
+import { getCurrentUser, ensureAffiliateAccount, getAffiliateSummary } from "../../../lib/api";
 
 export default function AffiliatePage() {
   const router = useRouter();
   const [me, setMe] = useState(null);
-  const [data, setData] = useState({ affiliateId: null, referrals: [], commissions: [] });
+  const [summary, setSummary] = useState(null);
   const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [ok, setOk] = useState("");
 
   useEffect(() => {
     let cancel = false;
@@ -19,55 +18,118 @@ export default function AffiliatePage() {
       try {
         const u = await getCurrentUser();
         if (!u) return router.replace("/signin");
-        if (cancel) return;
         setMe(u);
 
-        const o = await getAffiliateOverview().catch(() => ({ affiliateId: null, referrals: [], commissions: [] }));
-        if (!cancel) setData(o);
+        await ensureAffiliateAccount(u.$id);
+        const s = await getAffiliateSummary(u.$id);
+
+        if (!cancel) setSummary(s);
       } catch (e) {
-        if (!cancel) setErr(e?.message || "Unable to load affiliate module.");
-      } finally {
-        if (!cancel) setLoading(false);
+        if (!cancel) setErr(e?.message || "Unable to load affiliate.");
       }
     })();
-    return () => { cancel = true; };
+    return () => (cancel = true);
   }, [router]);
 
-  const metrics = [
-    { label: "Affiliate ID", value: data?.affiliateId ?? "—", sub: "tracking key" },
-    { label: "Referrals", value: String(data?.referrals?.length || 0), sub: "count" },
-    { label: "Commissions", value: String(data?.commissions?.length || 0), sub: "records" },
-    { label: "State", value: err ? "Degraded" : "Normal", sub: err ? "source error" : "ok" },
-  ];
+  const referralLink = useMemo(() => {
+    if (!summary?.affiliateId) return "";
+    if (typeof window === "undefined") return "";
+    return `${window.location.origin}/signup?ref=${summary.affiliateId}`;
+  }, [summary?.affiliateId]);
 
-  if (loading) return <div className="text-sm text-slate-400">Loading affiliate…</div>;
+  const copy = async () => {
+    setErr("");
+    setOk("");
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      setOk("Copied.");
+    } catch {
+      setErr("Copy failed.");
+    }
+  };
+
   if (!me) return null;
 
   return (
     <UnverifiedEmailGate>
-      <div className="space-y-5">
+      <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold">Affiliate Performance</h1>
-          <p className="text-sm text-slate-400">Referral analytics and commission tracking (read-only).</p>
+          <h1 className="text-xl font-semibold text-slate-100">Affiliate</h1>
+          <p className="text-sm text-slate-400">Commissions and referrals.</p>
         </div>
 
         {err ? (
-          <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-200">
+          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
             {err}
           </div>
         ) : null}
-
-        <MetricStrip items={metrics} />
-
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-          <div className="text-sm font-semibold text-slate-200">Referral Link</div>
-          <div className="mt-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-sm text-slate-200 break-all">
-            {typeof window !== "undefined"
-              ? `${window.location.origin}/signup?ref=${data?.affiliateId ?? "YOUR_ID"}`
-              : `/signup?ref=${data?.affiliateId ?? "YOUR_ID"}`}
+        {ok ? (
+          <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+            {ok}
           </div>
-          <div className="mt-2 text-xs text-slate-500">
-            Note: Your affiliate tables currently use numeric IDs in places. Normalize to string user IDs before writing.
+        ) : null}
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
+            <div className="text-xs text-slate-500">Affiliate ID</div>
+            <div className="mt-1 text-lg font-semibold text-slate-100">
+              {summary?.affiliateId ?? "—"}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
+            <div className="text-xs text-slate-500">Total Earned</div>
+            <div className="mt-1 text-lg font-semibold text-slate-100">
+              ${Number(summary?.totalEarned || 0).toLocaleString()}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
+            <div className="text-xs text-slate-500">Referrals</div>
+            <div className="mt-1 text-lg font-semibold text-slate-100">
+              {summary?.referralsCount ?? 0}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
+          <div className="text-sm font-semibold text-slate-100">Referral link</div>
+          <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center">
+            <input
+              value={referralLink}
+              readOnly
+              className="w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-200 outline-none"
+            />
+            <button
+              onClick={copy}
+              className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-sm text-amber-200 hover:bg-amber-500/15 transition"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
+          <div className="text-sm font-semibold text-slate-100">Recent commissions</div>
+          <div className="mt-3 space-y-2">
+            {(summary?.commissions || []).length ? (
+              summary.commissions.map((c) => (
+                <div
+                  key={c.$id}
+                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2"
+                >
+                  <div>
+                    <div className="text-sm font-medium text-slate-100">
+                      ${Number(c.commissionAmount || 0).toLocaleString()} {c.commissionCurrency || "USD"}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {new Date(c.commissionDate || c.$createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-400">{c.paymentStatus || "pending"}</div>
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-slate-400">No commissions yet.</div>
+            )}
           </div>
         </div>
       </div>
