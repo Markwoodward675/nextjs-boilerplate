@@ -3,35 +3,30 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import UnverifiedEmailGate from "../../../components/UnverifiedEmailGate";
-import MetricStrip from "../../../components/MetricStrip";
-import BlotterTable from "../../../components/BlotterTable";
-import AvatarModal from "../../../components/AvatarModal";
-import AppShellPro from "../../../components/AppShellPro";
-import {
-  getCurrentUser,
-  getUserWallets,
-  getUserTransactions,
-  getUserProfile,
-  createWithdrawal,
-} from "../../../lib/api";
+import { getCurrentUser, getUserProfile, createWithdrawalRequest } from "../../../lib/api";
 
-const money = (n) =>
-  `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-
-const COUNTRIES = ["Nigeria", "Ghana", "Kenya", "South Africa", "United States", "United Kingdom", "Canada"];
+const countries = ["Nigeria", "Ghana", "Kenya", "South Africa", "United States", "United Kingdom"];
 
 export default function WithdrawPage() {
   const router = useRouter();
   const [me, setMe] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [wallets, setWallets] = useState([]);
-  const [txs, setTxs] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  const [method, setMethod] = useState("");
+  const [method, setMethod] = useState("bank");
   const [country, setCountry] = useState("");
-  const [amount, setAmount] = useState("100");
-  const [details, setDetails] = useState({ bankName: "", accountName: "", accountNumber: "", cryptoAddress: "" });
+  const [amount, setAmount] = useState("");
+
+  // dynamic fields
+  const [bankName, setBankName] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+
+  const [cryptoNetwork, setCryptoNetwork] = useState("TRC20");
+  const [walletAddress, setWalletAddress] = useState("");
+
+  const [mobileProvider, setMobileProvider] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
+
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
@@ -39,64 +34,50 @@ export default function WithdrawPage() {
   useEffect(() => {
     let cancel = false;
     (async () => {
-      try {
-        const u = await getCurrentUser();
-        if (!u) return router.replace("/signin");
-        if (cancel) return;
+      const u = await getCurrentUser();
+      if (!u) return router.replace("/signin");
+      const p = await getUserProfile(u.$id).catch(() => null);
+
+      if (!cancel) {
         setMe(u);
-
-        const [p, ws, t] = await Promise.all([
-          getUserProfile(u.$id).catch(() => null),
-          getUserWallets(u.$id),
-          getUserTransactions(u.$id),
-        ]);
-
-        if (!cancel) {
-          setProfile(p);
-          setWallets(ws || []);
-          setTxs(t || []);
-        }
-      } catch (e) {
-        if (!cancel) setErr(e?.message || "Unable to load withdrawals.");
-      } finally {
-        if (!cancel) setLoading(false);
+        setProfile(p);
+        // lock country from profile if present
+        if (p?.country) setCountry(p.country);
       }
     })();
-    return () => { cancel = true; };
+    return () => (cancel = true);
   }, [router]);
 
-  const main = useMemo(() => (wallets || []).find((w) => w.currencyType === "main") || null, [wallets]);
-  const withdrawRows = useMemo(
-    () => (txs || []).filter((t) => t.category === "withdraw" || t.type === "withdraw").slice(0, 25),
-    [txs]
-  );
-
-  const metrics = [
-    { label: "Main", value: money(main?.balance), sub: "Balance" },
-    { label: "Requests", value: String(withdrawRows.length), sub: "Recent" },
-    { label: "Method", value: method || "—", sub: "Selection" },
-    { label: "Status", value: err ? "Degraded" : "Normal", sub: err ? "Error" : "Operational" },
-  ];
+  const methodTitle = useMemo(() => {
+    if (method === "bank") return "Bank Transfer";
+    if (method === "crypto") return "Crypto Transfer";
+    return "Mobile Money";
+  }, [method]);
 
   const submit = async () => {
     setBusy(true);
     setErr("");
     setOk("");
     try {
-      const a = Number(amount);
-      if (!Number.isFinite(a) || a <= 0) throw new Error("Invalid amount");
-      if (!method) throw new Error("Select a withdrawal method");
-      if (!country) throw new Error("Select a country");
+      const amt = Number(amount);
+      if (!amt || amt <= 0) throw new Error("Enter a valid amount.");
+      if (!country) throw new Error("Select a country.");
 
       const payload = {
         method,
         country,
-        amount: a,
-        details,
+        amount: amt,
+        details:
+          method === "bank"
+            ? { bankName, accountName, accountNumber }
+            : method === "crypto"
+            ? { cryptoNetwork, walletAddress }
+            : { mobileProvider, mobileNumber },
       };
 
-      await createWithdrawal(me.$id, payload);
-      setOk("Withdrawal submitted.");
+      const res = await createWithdrawalRequest(me.$id, payload);
+      setOk("Withdrawal request submitted.");
+      setAmount("");
     } catch (e) {
       setErr(e?.message || "Unable to submit withdrawal.");
     } finally {
@@ -104,131 +85,181 @@ export default function WithdrawPage() {
     }
   };
 
-  if (loading) return <div className="text-sm text-slate-400">Loading…</div>;
   if (!me) return null;
 
   return (
-    <AppShellPro rightSlot={<AvatarModal profile={profile} />}>
-      <UnverifiedEmailGate>
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-100">Withdraw</h1>
-            <p className="text-sm text-slate-400">Create a withdrawal request.</p>
+    <UnverifiedEmailGate>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-100">Withdraw</h1>
+          <p className="text-sm text-slate-400">Submit a withdrawal request.</p>
+        </div>
+
+        {err ? (
+          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+            {err}
+          </div>
+        ) : null}
+
+        {ok ? (
+          <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+            {ok}
+          </div>
+        ) : null}
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4 lg:col-span-1">
+            <div className="text-sm font-semibold text-slate-100">Method</div>
+
+            <div className="mt-3 space-y-2">
+              {[
+                { v: "bank", t: "Bank Transfer" },
+                { v: "crypto", t: "Crypto Transfer" },
+                { v: "mobile", t: "Mobile Money" },
+              ].map((m) => (
+                <button
+                  key={m.v}
+                  onClick={() => setMethod(m.v)}
+                  className={[
+                    "w-full rounded-xl border px-3 py-2 text-left text-sm transition",
+                    method === m.v
+                      ? "border-amber-500/25 bg-amber-500/10 text-amber-200"
+                      : "border-slate-800 bg-slate-950/20 text-slate-200 hover:bg-slate-900/50",
+                  ].join(" ")}
+                >
+                  {m.t}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {err ? (
-            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">{err}</div>
-          ) : null}
-          {ok ? (
-            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-200">{ok}</div>
-          ) : null}
-
-          <MetricStrip items={metrics} />
-
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-            <div className="text-sm font-semibold text-slate-200">New Withdrawal</div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4 lg:col-span-2">
+            <div className="flex items-center justify-between">
               <div>
-                <div className="text-[11px] uppercase tracking-widest text-slate-500">Method</div>
-                <select
-                  className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm outline-none focus:border-amber-500/40"
-                  value={method}
-                  onChange={(e) => {
-                    setMethod(e.target.value);
-                    setCountry("");
-                    setDetails({ bankName: "", accountName: "", accountNumber: "", cryptoAddress: "" });
-                  }}
-                >
-                  <option value="">Select…</option>
-                  <option value="bank_transfer">Bank transfer</option>
-                  <option value="crypto">Crypto</option>
-                </select>
+                <div className="text-sm font-semibold text-slate-100">{methodTitle}</div>
+                <div className="text-xs text-slate-500">Fill in the required details.</div>
               </div>
+            </div>
 
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
                 <div className="text-[11px] uppercase tracking-widest text-slate-500">Country</div>
                 <select
-                  disabled={!method}
-                  className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm outline-none focus:border-amber-500/40 disabled:opacity-60"
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500/40"
                 >
-                  <option value="">Select…</option>
-                  {COUNTRIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                  <option value="">Select country</option>
+                  {countries.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <div className="text-[11px] uppercase tracking-widest text-slate-500">Amount (USD)</div>
+                <div className="text-[11px] uppercase tracking-widest text-slate-500">Amount</div>
                 <input
-                  className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm outline-none focus:border-amber-500/40"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   inputMode="decimal"
+                  placeholder="0.00"
+                  className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none focus:border-amber-500/40"
                 />
               </div>
             </div>
 
-            {/* Details form */}
-            {method && country ? (
-              <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
-                <div className="text-sm font-semibold text-slate-200">Withdrawal Details</div>
-
-                {method === "bank_transfer" ? (
-                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+            {/* Dynamic forms */}
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {method === "bank" ? (
+                <>
+                  <div>
+                    <div className="text-[11px] uppercase tracking-widest text-slate-500">Bank name</div>
                     <input
-                      placeholder="Bank name"
-                      className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm outline-none focus:border-amber-500/40"
-                      value={details.bankName}
-                      onChange={(e) => setDetails((d) => ({ ...d, bankName: e.target.value }))}
-                    />
-                    <input
-                      placeholder="Account name"
-                      className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm outline-none focus:border-amber-500/40"
-                      value={details.accountName}
-                      onChange={(e) => setDetails((d) => ({ ...d, accountName: e.target.value }))}
-                    />
-                    <input
-                      placeholder="Account number"
-                      className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm outline-none focus:border-amber-500/40"
-                      value={details.accountNumber}
-                      onChange={(e) => setDetails((d) => ({ ...d, accountNumber: e.target.value }))}
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none"
                     />
                   </div>
-                ) : (
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-widest text-slate-500">Account name</div>
                     <input
-                      placeholder="Wallet address"
-                      className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm outline-none focus:border-amber-500/40"
-                      value={details.cryptoAddress}
-                      onChange={(e) => setDetails((d) => ({ ...d, cryptoAddress: e.target.value }))}
+                      value={accountName}
+                      onChange={(e) => setAccountName(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none"
                     />
-                    <div className="text-xs text-slate-500 flex items-center">
-                      Network and asset are validated in processing.
-                    </div>
                   </div>
-                )}
+                  <div className="md:col-span-2">
+                    <div className="text-[11px] uppercase tracking-widest text-slate-500">Account number</div>
+                    <input
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none"
+                    />
+                  </div>
+                </>
+              ) : null}
 
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={submit}
-                    className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-sm text-amber-200 hover:bg-amber-500/15 transition disabled:opacity-60"
-                  >
-                    {busy ? "Submitting…" : "Submit withdrawal"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
+              {method === "crypto" ? (
+                <>
+                  <div>
+                    <div className="text-[11px] uppercase tracking-widest text-slate-500">Network</div>
+                    <select
+                      value={cryptoNetwork}
+                      onChange={(e) => setCryptoNetwork(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none"
+                    >
+                      <option value="TRC20">TRC20</option>
+                      <option value="ERC20">ERC20</option>
+                      <option value="BEP20">BEP20</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <div className="text-[11px] uppercase tracking-widest text-slate-500">Wallet address</div>
+                    <input
+                      value={walletAddress}
+                      onChange={(e) => setWalletAddress(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none"
+                    />
+                  </div>
+                </>
+              ) : null}
+
+              {method === "mobile" ? (
+                <>
+                  <div>
+                    <div className="text-[11px] uppercase tracking-widest text-slate-500">Provider</div>
+                    <input
+                      value={mobileProvider}
+                      onChange={(e) => setMobileProvider(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-[11px] uppercase tracking-widest text-slate-500">Mobile number</div>
+                    <input
+                      value={mobileNumber}
+                      onChange={(e) => setMobileNumber(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none"
+                    />
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="mt-5 flex items-center gap-2">
+              <button
+                disabled={busy}
+                onClick={submit}
+                className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-sm text-amber-200 hover:bg-amber-500/15 transition disabled:opacity-60"
+              >
+                {busy ? "Submitting…" : "Submit request"}
+              </button>
+            </div>
           </div>
-
-          <BlotterTable title="Withdrawals" rows={withdrawRows} />
         </div>
-      </UnverifiedEmailGate>
-    </AppShellPro>
+      </div>
+    </UnverifiedEmailGate>
   );
 }
