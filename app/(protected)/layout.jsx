@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppShellPro from "../../components/AppShellPro";
 import AvatarModal from "../../components/AvatarModal";
-import { getCurrentUser, getUserProfile } from "../../lib/api";
+import { getCurrentUser, getUserProfile, createUserProfileIfMissing } from "../../lib/api";
 
 export default function ProtectedLayout({ children }) {
   const router = useRouter();
@@ -13,23 +13,17 @@ export default function ProtectedLayout({ children }) {
   useEffect(() => {
     let cancel = false;
     (async () => {
-      try {
-        const u = await getCurrentUser();
-        if (!u) return router.replace("/signin");
-        const p = await getUserProfile(u.$id).catch(() => null);
-        if (!cancel) setProfile(p);
-      } catch {
-        // let pages handle errors
-      }
+      const u = await getCurrentUser();
+      if (!u) return router.replace("/signin");
+
+      // Ensure profile exists (docId = user.$id)
+      const p = await createUserProfileIfMissing(u).catch(() => null);
+      if (!cancel) setProfile(p);
     })();
     return () => {
       cancel = true;
     };
   }, [router]);
 
-  return (
-    <AppShellPro rightSlot={<AvatarModal profile={profile} />}>
-      {children}
-    </AppShellPro>
-  );
+  return <AppShellPro rightSlot={<AvatarModal profile={profile} />}>{children}</AppShellPro>;
 }
