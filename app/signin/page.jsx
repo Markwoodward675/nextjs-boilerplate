@@ -1,6 +1,7 @@
 // app/signin/page.jsx
 "use client";
 
+import { bootstrapUserCountry } from "../../lib/api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loginWithEmailPassword, getCurrentUser } from "../../lib/api";
@@ -12,6 +13,8 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  await bootstrapUserCountry(user.$id);
+
 
   // If a session already exists, redirect straight to dashboard
   useEffect(() => {
