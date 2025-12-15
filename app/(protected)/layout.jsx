@@ -9,24 +9,40 @@ import { ensureUserBootstrap, signOut } from "../../lib/api";
 export default function ProtectedLayout({ children }) {
   const router = useRouter();
   const [boot, setBoot] = useState(null); // { user, profile }
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancel = false;
+
     (async () => {
       try {
         const b = await ensureUserBootstrap();
         if (!cancel) setBoot(b);
       } catch {
         router.replace("/signin");
+      } finally {
+        if (!cancel) setLoading(false);
       }
     })();
-    return () => (cancel = true);
+
+    return () => {
+      cancel = true;
+    };
   }, [router]);
 
   const profile = boot?.profile || null;
 
+  const displayName = useMemo(() => {
+    return (
+      profile?.fullName?.trim() ||
+      boot?.user?.name?.trim() ||
+      boot?.user?.email?.split("@")?.[0] ||
+      "User"
+    );
+  }, [profile?.fullName, boot?.user?.name, boot?.user?.email]);
+
   const badge = useMemo(() => {
-    const ok = (profile?.kycStatus || "").toLowerCase() === "approved";
+    const ok = String(profile?.kycStatus || "").toLowerCase() === "approved";
     return (
       <span
         className="pillBtn"
@@ -40,35 +56,27 @@ export default function ProtectedLayout({ children }) {
     );
   }, [profile?.kycStatus]);
 
-  // ✅ stable displayName fallback
-  const displayName = useMemo(() => {
-    return (
-      profile?.fullName?.trim() ||
-      boot?.user?.name?.trim() ||
-      boot?.user?.email?.split("@")?.[0] ||
-      "User"
-    );
-  }, [profile?.fullName, boot?.user?.name, boot?.user?.email]);
+  const rightSlot = useMemo(() => {
+    if (loading) return null; // prevents flicker + duplicate “U” placeholder moments
+    if (!boot?.user) return null;
 
-  return (
-    <AppShellPro
-      rightSlot={
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {badge}
-          <AvatarModal profile={{ ...(profile || {}), fullName: displayName }} />
-          <button
-            className="pillBtn"
-            onClick={async () => {
-              await signOut();
-              router.replace("/signin");
-            }}
-          >
-            Sign out
-          </button>
-        </div>
-      }
-    >
-      {children}
-    </AppShellPro>
-  );
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        {badge}
+        <AvatarModal profile={{ ...(profile || {}), fullName: displayName }} />
+        <button
+          className="pillBtn"
+          onClick={async () => {
+            await signOut();
+            router.replace("/signin");
+          }}
+          type="button"
+        >
+          Sign out
+        </button>
+      </div>
+    );
+  }, [loading, boot?.user, badge, profile, displayName, router]);
+
+  return <AppShellPro rightSlot={rightSlot}>{children}</AppShellPro>;
 }
