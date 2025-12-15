@@ -8,14 +8,14 @@ import { ensureUserBootstrap, signOut } from "../../lib/api";
 
 export default function ProtectedLayout({ children }) {
   const router = useRouter();
-  const [profile, setProfile] = useState(null);
+  const [boot, setBoot] = useState(null); // { user, profile }
 
   useEffect(() => {
     let cancel = false;
     (async () => {
       try {
-        const { profile: p } = await ensureUserBootstrap();
-        if (!cancel) setProfile(p);
+        const b = await ensureUserBootstrap();
+        if (!cancel) setBoot(b);
       } catch {
         router.replace("/signin");
       }
@@ -23,8 +23,10 @@ export default function ProtectedLayout({ children }) {
     return () => (cancel = true);
   }, [router]);
 
+  const profile = boot?.profile || null;
+
   const badge = useMemo(() => {
-    const ok = profile?.kycStatus === "approved";
+    const ok = (profile?.kycStatus || "").toLowerCase() === "approved";
     return (
       <span
         className="pillBtn"
@@ -38,12 +40,22 @@ export default function ProtectedLayout({ children }) {
     );
   }, [profile?.kycStatus]);
 
+  // ✅ stable displayName fallback
+  const displayName = useMemo(() => {
+    return (
+      profile?.fullName?.trim() ||
+      boot?.user?.name?.trim() ||
+      boot?.user?.email?.split("@")?.[0] ||
+      "User"
+    );
+  }, [profile?.fullName, boot?.user?.name, boot?.user?.email]);
+
   return (
     <AppShellPro
       rightSlot={
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {badge}
-          <AvatarModal profile={profile} />
+          <AvatarModal profile={{ ...(profile || {}), fullName: displayName }} />
           <button
             className="pillBtn"
             onClick={async () => {
