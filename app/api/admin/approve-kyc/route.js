@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { getAdminClient, requireAdminKey } from "../../../../lib/appwriteAdmin";
 
