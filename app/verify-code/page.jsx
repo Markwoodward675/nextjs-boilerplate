@@ -1,105 +1,143 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ensureUserBootstrap, createOrRefreshVerifyCode, verify6DigitCode } from "../../lib/api";
+import {
+  ensureUserBootstrap,
+  createOrRefreshVerifyCode,
+  verifySixDigitCode,
+  getErrorMessage,
+} from "../../lib/api";
 
 export default function VerifyCodePage() {
   const router = useRouter();
-  const [me, setMe] = useState(null);
-  const [profile, setProfile] = useState(null);
+
+  const [boot, setBoot] = useState(null); // { user, profile }
+  const [busy, setBusy] = useState(true);
 
   const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
-  const [ok, setOk] = useState("");
+
+  const canVerify = useMemo(() => /^\d{6}$/.test(code), [code]);
 
   useEffect(() => {
-    let cancel = false;
-    (async () => {
-      try {
-        const boot = await ensureUserBootstrap();
-        if (cancel) return;
-        setMe(boot.user);
-        setProfile(boot.profile);
+    let cancelled = false;
 
-        if (boot.profile?.verificationCodeVerified) {
-          router.replace("/dashboard");
+    (async () => {
+      setBusy(true);
+      setErr("");
+      setMsg("");
+
+      try {
+        const b = await ensureUserBootstrap();
+        if (cancelled) return;
+
+        if (!b?.user) {
+          router.replace("/signin");
+          return;
         }
-      } catch {
+
+        // Already verified -> go dashboard
+        if (b?.profile?.verificationCodeVerified) {
+          router.replace("/dashboard");
+          return;
+        }
+
+        setBoot(b);
+      } catch (e) {
+        setErr(getErrorMessage(e, "Bootstrap failed. Please sign in again."));
         router.replace("/signin");
+      } finally {
+        if (!cancelled) setBusy(false);
       }
     })();
-    return () => (cancel = true);
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
-  const send = async () => {
-    if (!me) return;
-    setBusy(true);
+  const sendCode = async () => {
+    if (!boot?.user?.$id) return;
     setErr("");
-    setOk("");
+    setMsg("");
+    setBusy(true);
     try {
-      await createOrRefreshVerifyCode(me.$id);
-      setOk("Verification code generated. Check Alerts.");
+      await createOrRefreshVerifyCode(boot.user.$id);
+      setMsg("A new 6-digit code was generated. Check your Alerts.");
     } catch (e) {
-      setErr(e?.message || "Unable to generate code.");
+      setErr(getErrorMessage(e, "Unable to generate code."));
     } finally {
       setBusy(false);
     }
   };
 
   const verify = async () => {
-    if (!me) return;
-    setBusy(true);
+    if (!boot?.user?.$id) return;
     setErr("");
-    setOk("");
+    setMsg("");
+    setBusy(true);
     try {
-      await verify6DigitCode(me.$id, code);
+      await verifySixDigitCode(boot.user.$id, code);
+      setMsg("Verified! Redirecting…");
       router.replace("/dashboard");
     } catch (e) {
-      setErr(e?.message || "Unable to verify.");
+      setErr(getErrorMessage(e, "Invalid or expired code."));
     } finally {
       setBusy(false);
     }
   };
 
+  if (busy && !boot) return <div className="cardSub">Checking your session…</div>;
+  if (!boot?.user) return <div className="cardSub">Redirecting…</div>;
+
   return (
-    <div className="page-bg">
-      <div className="shell">
-        <div className="contentCard">
-          <div className="contentInner">
-            <div className="card">
-              <div className="cardTitle">Verify your account</div>
-              <p className="cardSub">Enter the 6-digit code to access the dashboard.</p>
-              {profile?.email ? <p className="cardSub" style={{ marginTop: 6 }}>Signed in as {profile.email}</p> : null}
+    <div className="contentCard">
+      <div className="contentInner">
+        <div className="card">
+          <div className="cardTitle">Verify your account</div>
+          <div className="cardSub" style={{ marginTop: 6 }}>
+            We need to verify your Day Trader account with a 6-digit code before you can access your dashboard.
+          </div>
+          <div className="cardSub" style={{ marginTop: 10 }}>
+            Signed in as <b>{boot.user.email}</b>.
+          </div>
+        </div>
+
+        {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
+        {msg ? <div className="flashOk" style={{ marginTop: 12 }}>{msg}</div> : null}
+
+        <div className="card" style={{ marginTop: 12, display: "grid", gap: 10 }}>
+          <button className="btnPrimary" onClick={sendCode} disabled={busy}>
+            {busy ? "Working…" : "Send / regenerate 6-digit code"}
+          </button>
+
+          <div>
+            <div className="cardSub" style={{ marginBottom: 6 }}>Enter 6-digit code</div>
+            <input
+              className="input"
+              inputMode="numeric"
+              pattern="\d*"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="••••••"
+            />
+            <div className="cardSub" style={{ marginTop: 6 }}>
+              Enter the code we generated for your account (you’ll see it in Alerts).
             </div>
+          </div>
 
-            {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
-            {ok ? <div className="flashOk" style={{ marginTop: 12 }}>{ok}</div> : null}
+          <button className="btnPrimary" onClick={verify} disabled={!canVerify || busy}>
+            {busy ? "Verifying…" : "Verify code"}
+          </button>
 
-            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              <button className="btnPrimary" onClick={send} disabled={busy}>
-                {busy ? "Working…" : "Send / regenerate 6-digit code"}
-              </button>
-
-              <div>
-                <div className="cardSub" style={{ marginBottom: 6 }}>Enter 6-digit code</div>
-                <input
-                  className="input"
-                  maxLength={6}
-                  inputMode="numeric"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="••••••"
-                />
-              </div>
-
-              <button className="btnPrimary" onClick={verify} disabled={busy}>
-                {busy ? "Verifying…" : "Verify code"}
-              </button>
-
-              <div className="cardSub">Email link verification is optional.</div>
-            </div>
+          <div className="cardSub">
+            Not you?{" "}
+            <a href="/signout" style={{ color: "rgba(56,189,248,.95)" }}>
+              Sign out
+            </a>
           </div>
         </div>
       </div>
