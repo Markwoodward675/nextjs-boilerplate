@@ -1,85 +1,84 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import UnverifiedEmailGate from "../../../components/UnverifiedEmailGate";
-import MetricStrip from "../../../components/MetricStrip";
-import BlotterTable from "../../../components/BlotterTable";
-import MarketPanel from "../../../components/MarketPanel";
-import { getCurrentUser, getUserWallets, getUserTransactions } from "../../../lib/api";
-
-const money = (n) => `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+import { ensureUserBootstrap, createTransaction } from "../../../lib/api";
 
 export default function TradePage() {
   const router = useRouter();
-  const [me, setMe] = useState(null);
-  const [wallets, setWallets] = useState([]);
-  const [txs, setTxs] = useState([]);
+  const [boot, setBoot] = useState(null);
+  const [symbol, setSymbol] = useState("BTCUSDT");
+  const [side, setSide] = useState("buy");
+  const [qty, setQty] = useState("");
   const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [ok, setOk] = useState("");
 
   useEffect(() => {
-    let cancel = false;
+    let c = false;
     (async () => {
-      try {
-        const u = await getCurrentUser();
-        if (!u) return router.replace("/signin");
-        if (cancel) return;
-        setMe(u);
-
-        const [ws, t] = await Promise.all([getUserWallets(u.$id), getUserTransactions(u.$id)]);
-        if (!cancel) {
-          setWallets(ws || []);
-          setTxs(t || []);
-        }
-      } catch (e) {
-        if (!cancel) setErr(e?.message || "Unable to load trade module.");
-      } finally {
-        if (!cancel) setLoading(false);
-      }
+      const b = await ensureUserBootstrap().catch(() => null);
+      if (!b) return router.replace("/signin");
+      if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
+      if (!c) setBoot(b);
     })();
-    return () => { cancel = true; };
+    return () => (c = true);
   }, [router]);
 
-  const trading = useMemo(() => (wallets || []).find((w) => w.currencyType === "trading") || null, [wallets]);
-  const tradeRows = useMemo(
-    () => (txs || []).filter((t) => t.category === "trade" || t.type === "trade").slice(0, 25),
-    [txs]
-  );
+  const place = async () => {
+    if (!boot) return;
+    setErr("");
+    setOk("");
+    try {
+      const q = Number(qty);
+      if (!q || q <= 0) throw new Error("Enter a valid quantity.");
 
-  const metrics = [
-    { label: "Trading Balance", value: money(trading?.balance), sub: "wallet: trading" },
-    { label: "Executions", value: String(tradeRows.length), sub: "last 25" },
-    { label: "Risk State", value: err ? "Degraded" : "Normal", sub: err ? "data source error" : "ok" },
-    { label: "Session", value: "Active", sub: "paper environment" },
-  ];
+      await createTransaction(boot.user.$id, {
+        type: "trade",
+        amount: 0,
+        status: "pending",
+        meta: { symbol, side, qty: q },
+      });
 
-  if (loading) return <div className="text-sm text-slate-400">Loading trade…</div>;
-  if (!me) return null;
+      setOk("Order submitted.");
+      setQty("");
+    } catch (e) {
+      setErr(e?.message || "Unable to place order.");
+    }
+  };
+
+  if (!boot) return <div className="cardSub">Loading…</div>;
 
   return (
-    <UnverifiedEmailGate>
-      <div className="space-y-5">
-        <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
-          <div>
-            <h1 className="text-2xl font-semibold">Execution Terminal</h1>
-            <p className="text-sm text-slate-400">Positions, risk, and execution blotter.</p>
-          </div>
-          <div className="w-full lg:w-[420px]">
-            <MarketPanel kind="stock" symbol="AAPL" />
-          </div>
+    <div style={{ display: "grid", gap: 12 }}>
+      <div className="card">
+        <div className="cardTitle">Trade</div>
+        <div className="cardSub">Order entry and execution tracking.</div>
+      </div>
+
+      {err ? <div className="flashError">{err}</div> : null}
+      {ok ? <div className="flashOk">{ok}</div> : null}
+
+      <div className="card" style={{ display: "grid", gap: 10 }}>
+        <div>
+          <div className="cardSub" style={{ marginBottom: 6 }}>Symbol</div>
+          <input className="input" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
         </div>
 
-        {err ? (
-          <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-200">
-            {err}
-          </div>
-        ) : null}
+        <div>
+          <div className="cardSub" style={{ marginBottom: 6 }}>Side</div>
+          <select className="select" value={side} onChange={(e) => setSide(e.target.value)}>
+            <option value="buy">Buy</option>
+            <option value="sell">Sell</option>
+          </select>
+        </div>
 
-        <MetricStrip items={metrics} />
+        <div>
+          <div className="cardSub" style={{ marginBottom: 6 }}>Quantity</div>
+          <input className="input" value={qty} onChange={(e) => setQty(e.target.value)} />
+        </div>
 
-        <BlotterTable rows={tradeRows} title="Execution Blotter" />
+        <button className="btnPrimary" onClick={place}>Place order</button>
       </div>
-    </UnverifiedEmailGate>
+    </div>
   );
 }
