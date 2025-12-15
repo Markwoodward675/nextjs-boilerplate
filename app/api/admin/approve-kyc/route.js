@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { adminDb, ADMIN_DB_ID } from "@/lib/appwriteAdmin";
+import { adminDb, ADMIN_DB_ID, requireAdminKey } from "../../../../lib/appwriteAdmin";
 
 export async function POST(req) {
   try {
