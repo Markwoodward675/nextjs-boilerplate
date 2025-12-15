@@ -2,61 +2,72 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import UnverifiedEmailGate from "../../../../components/UnverifiedEmailGate";
-import MetricStrip from "../../../../components/MetricStrip";
-import { getCurrentUser } from "../../../../lib/api";
+import { ensureUserBootstrap, createTransaction } from "../../../../lib/api";
 
-export default function GiftcardsSellPage() {
+export default function GiftcardSellPage() {
   const router = useRouter();
-  const [me, setMe] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [boot, setBoot] = useState(null);
+  const [vendor, setVendor] = useState("Amazon");
+  const [value, setValue] = useState("");
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
 
   useEffect(() => {
-    let cancel = false;
+    let c = false;
     (async () => {
-      const u = await getCurrentUser();
-      if (!u) return router.replace("/signin");
-      if (cancel) return;
-      setMe(u);
-      setLoading(false);
+      const b = await ensureUserBootstrap().catch(() => null);
+      if (!b) return router.replace("/signin");
+      if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
+      if (!c) setBoot(b);
     })();
-    return () => { cancel = true; };
+    return () => (c = true);
   }, [router]);
 
-  const metrics = [
-    { label: "Workflow", value: "Submission", sub: "sell request" },
-    { label: "Review", value: "Manual", sub: "queue controlled" },
-    { label: "Settlement", value: "TBD", sub: "policy" },
-    { label: "State", value: "Read-only", sub: "no uploads yet" },
-  ];
+  const submit = async () => {
+    if (!boot) return;
+    setErr("");
+    setMsg("");
+    try {
+      const v = Number(value);
+      if (!v || v <= 0) throw new Error("Enter a valid card value.");
 
-  if (loading) return <div className="text-sm text-slate-400">Loading sell desk…</div>;
-  if (!me) return null;
+      await createTransaction(boot.user.$id, {
+        type: "giftcard_sell",
+        amount: v,
+        status: "pending",
+        meta: { vendor },
+      });
+
+      setMsg("Request submitted.");
+      setValue("");
+    } catch (e) {
+      setErr(e?.message || "Unable to submit.");
+    }
+  };
+
+  if (!boot) return <div className="cardSub">Loading…</div>;
 
   return (
-    <UnverifiedEmailGate>
-      <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold">Giftcard Sell Desk</h1>
-          <p className="text-sm text-slate-400">Submission intake and review routing.</p>
-        </div>
-
-        <MetricStrip items={metrics} />
-
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-          <div className="text-sm font-semibold text-slate-200">Submission</div>
-          <div className="mt-2 text-sm text-slate-400">
-            Next step: add upload + validation + create a transaction record with status routing.
-          </div>
-          <button
-            type="button"
-            className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 hover:bg-amber-500/15 transition"
-            onClick={() => alert("Next: implement upload + sell request table + admin review.")}
-          >
-            Create Sell Request
-          </button>
-        </div>
+    <div style={{ display: "grid", gap: 12 }}>
+      <div className="card">
+        <div className="cardTitle">Giftcards — Sell</div>
+        <div className="cardSub">Submit your card for review.</div>
       </div>
-    </UnverifiedEmailGate>
+
+      {err ? <div className="flashError">{err}</div> : null}
+      {msg ? <div className="flashOk">{msg}</div> : null}
+
+      <div className="card" style={{ display: "grid", gap: 10 }}>
+        <div>
+          <div className="cardSub" style={{ marginBottom: 6 }}>Vendor</div>
+          <input className="input" value={vendor} onChange={(e) => setVendor(e.target.value)} />
+        </div>
+        <div>
+          <div className="cardSub" style={{ marginBottom: 6 }}>Card value (USD)</div>
+          <input className="input" value={value} onChange={(e) => setValue(e.target.value)} />
+        </div>
+        <button className="btnPrimary" onClick={submit}>Submit</button>
+      </div>
+    </div>
   );
 }
