@@ -7,8 +7,6 @@ import MetricStrip from "../../../components/MetricStrip";
 import BlotterTable from "../../../components/BlotterTable";
 import MarketPanel from "../../../components/MarketPanel";
 import CryptoTop15 from "../../../components/CryptoTop15";
-import AvatarModal from "../../../components/AvatarModal";
-import AppShellPro from "../../../components/AppShellPro";
 import {
   getCurrentUser,
   getUserWallets,
@@ -32,11 +30,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
       try {
         const u = await getCurrentUser();
-        if (!u) return router.replace("/signin");
+        if (!u) {
+          router.replace("/signin");
+          return;
+        }
         if (cancelled) return;
+
         setMe(u);
 
         const [p, ws, t, a] = await Promise.all([
@@ -58,6 +61,7 @@ export default function DashboardPage() {
         if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
@@ -98,53 +102,58 @@ export default function DashboardPage() {
   if (!me) return null;
 
   return (
-    <AppShellPro rightSlot={<AvatarModal profile={profile} />}>
-      <UnverifiedEmailGate>
-        <div className="space-y-6">
-          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-100">Overview</h1>
-              <p className="text-sm text-slate-400">Balances, activity, and market context.</p>
-            </div>
-            <div className="w-full lg:w-[420px]">
-              <MarketPanel kind="stock" symbol="AAPL" />
-            </div>
+    <UnverifiedEmailGate user={me}>
+      <div className="space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-100">Overview</h1>
+            <p className="text-sm text-slate-400">
+              Balances, activity, and market context.
+            </p>
           </div>
-
-          {err ? (
-            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
-              {err}
-            </div>
-          ) : null}
-
-          <MetricStrip items={metrics} />
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            <BlotterTable title="Recent Transactions" rows={recentTxs} />
-            <CryptoTop15 />
-          </div>
-
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold text-slate-200">Alerts</div>
-              <div className="text-xs text-slate-500">{alerts.length} total</div>
-            </div>
-
-            {alerts.length === 0 ? (
-              <div className="text-sm text-slate-400">No alerts.</div>
-            ) : (
-              <ul className="space-y-2">
-                {alerts.slice(0, 6).map((a) => (
-                  <li key={a.$id} className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-                    <div className="text-sm text-slate-200">{a.title || "Notice"}</div>
-                    <div className="text-xs text-slate-500 mt-1">{a.createdAt || a.$createdAt}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="w-full lg:w-[420px]">
+            <MarketPanel kind="stock" symbol="AAPL" />
           </div>
         </div>
-      </UnverifiedEmailGate>
-    </AppShellPro>
+
+        {err ? (
+          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+            {err}
+          </div>
+        ) : null}
+
+        <MetricStrip items={metrics} />
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <BlotterTable title="Recent Transactions" rows={recentTxs} />
+          <CryptoTop15 />
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-semibold text-slate-200">Alerts</div>
+            <div className="text-xs text-slate-500">{alerts.length} total</div>
+          </div>
+
+          {alerts.length === 0 ? (
+            <div className="text-sm text-slate-400">No alerts.</div>
+          ) : (
+            <ul className="space-y-2">
+              {alerts.slice(0, 6).map((a) => (
+                <li
+                  key={a.$id}
+                  className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"
+                >
+                  <div className="text-sm text-slate-200">{a.title || "Notice"}</div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {a.createdAt || a.$createdAt}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </UnverifiedEmailGate>
   );
 }
