@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppShellPro from "../../components/AppShellPro";
 import AvatarModal from "../../components/AvatarModal";
-import { getCurrentUser, createUserProfileIfMissing, signOut } from "../../lib/api";
+import { ensureUserBootstrap, signOut } from "../../lib/api";
 
 export default function ProtectedLayout({ children }) {
   const router = useRouter();
@@ -13,45 +13,47 @@ export default function ProtectedLayout({ children }) {
   useEffect(() => {
     let cancel = false;
     (async () => {
-      const u = await getCurrentUser();
-      if (!u) return router.replace("/signin");
-      const p = await createUserProfileIfMissing(u).catch(() => null);
-      if (!cancel) setProfile(p);
+      try {
+        const { profile: p } = await ensureUserBootstrap();
+        if (!cancel) setProfile(p);
+      } catch {
+        router.replace("/signin");
+      }
     })();
-    return () => {
-      cancel = true;
-    };
+    return () => (cancel = true);
   }, [router]);
 
-  const initials = (profile?.displayName || profile?.fullName || "U")
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((x) => x[0]?.toUpperCase())
-    .join("") || "U";
+  const badge = useMemo(() => {
+    const ok = profile?.kycStatus === "approved";
+    return (
+      <span
+        className="pillBtn"
+        style={{
+          borderColor: ok ? "rgba(16,185,129,.55)" : "rgba(244,63,94,.45)",
+          background: ok ? "rgba(16,185,129,.10)" : "rgba(244,63,94,.10)",
+        }}
+      >
+        {ok ? "Verified" : "Unverified"}
+      </span>
+    );
+  }, [profile?.kycStatus]);
 
   return (
     <AppShellPro
       rightSlot={
-        <>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <AvatarModal profile={profile} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div style={{ fontSize: 11, color: "rgba(148,163,184,.95)" }}>
-                {profile?.email || ""}
-              </div>
-              <button
-                className="pillBtn"
-                onClick={async () => {
-                  await signOut();
-                  router.replace("/signin");
-                }}
-              >
-                {initials} <span style={{ opacity: 0.8 }}>Sign out</span>
-              </button>
-            </div>
-          </div>
-        </>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {badge}
+          <AvatarModal profile={profile} />
+          <button
+            className="pillBtn"
+            onClick={async () => {
+              await signOut();
+              router.replace("/signin");
+            }}
+          >
+            Sign out
+          </button>
+        </div>
       }
     >
       {children}
