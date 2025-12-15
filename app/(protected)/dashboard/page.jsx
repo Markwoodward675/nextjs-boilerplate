@@ -2,158 +2,119 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import UnverifiedEmailGate from "../../../components/UnverifiedEmailGate";
-import MetricStrip from "../../../components/MetricStrip";
-import BlotterTable from "../../../components/BlotterTable";
-import MarketPanel from "../../../components/MarketPanel";
-import CryptoTop15 from "../../../components/CryptoTop15";
-import {
-  getCurrentUser,
-  getUserWallets,
-  getUserTransactions,
-  getUserAlerts,
-  getUserProfile,
-} from "../../../lib/api";
+import { ensureUserBootstrap, getUserTransactions, getUserAlerts } from "../../../lib/api";
 
-const money = (n) =>
-  `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+const money = (n) => `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [me, setMe] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [wallets, setWallets] = useState([]);
+  const [boot, setBoot] = useState(null);
   const [txs, setTxs] = useState([]);
   const [alerts, setAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    let cancelled = false;
-
+    let cancel = false;
     (async () => {
       try {
-        const u = await getCurrentUser();
-        if (!u) {
-          router.replace("/signin");
-          return;
-        }
-        if (cancelled) return;
+        const b = await ensureUserBootstrap();
+        if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
 
-        setMe(u);
-
-        const [p, ws, t, a] = await Promise.all([
-          getUserProfile(u.$id).catch(() => null),
-          getUserWallets(u.$id),
-          getUserTransactions(u.$id),
-          getUserAlerts(u.$id),
+        const [t, a] = await Promise.all([
+          getUserTransactions(b.user.$id),
+          getUserAlerts(b.user.$id),
         ]);
 
-        if (!cancelled) {
-          setProfile(p);
-          setWallets(ws || []);
-          setTxs(t || []);
-          setAlerts(a || []);
+        if (!cancel) {
+          setBoot(b);
+          setTxs(t);
+          setAlerts(a);
         }
       } catch (e) {
-        if (!cancelled) setErr(e?.message || "Dashboard data unavailable.");
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancel) setErr(e?.message || "Dashboard unavailable.");
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => (cancel = true);
   }, [router]);
 
-  const walletByType = useMemo(() => {
-    const map = {};
-    (wallets || []).forEach((w) => {
-      if (w?.currencyType) map[w.currencyType] = w;
+  const totals = useMemo(() => {
+    const map = { main: 0, trading: 0, affiliate: 0 };
+    (boot?.wallets || []).forEach((w) => {
+      if (w.currencyType === "main") map.main = Number(w.balance || 0);
+      if (w.currencyType === "trading") map.trading = Number(w.balance || 0);
+      if (w.currencyType === "affiliate") map.affiliate = Number(w.balance || 0);
     });
     return map;
-  }, [wallets]);
+  }, [boot?.wallets]);
 
-  const recentTxs = useMemo(() => {
-    return [...(txs || [])]
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt || b.$createdAt).getTime() -
-          new Date(a.createdAt || a.$createdAt).getTime()
-      )
-      .slice(0, 12);
-  }, [txs]);
+  const recentTx = useMemo(() => (txs || []).slice(0, 10), [txs]);
 
-  const metrics = [
-    { label: "Main", value: money(walletByType.main?.balance), sub: "Balance" },
-    { label: "Trading", value: money(walletByType.trading?.balance), sub: "Balance" },
-    { label: "Affiliate", value: money(walletByType.affiliate?.balance), sub: "Balance" },
-    { label: "Status", value: err ? "Degraded" : "Normal", sub: err ? "Error" : "Operational" },
-  ];
-
-  if (loading) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center text-sm text-slate-400">
-        Loading…
-      </div>
-    );
-  }
-  if (!me) return null;
+  if (!boot) return <div className="cardSub">Loading…</div>;
 
   return (
-    <UnverifiedEmailGate user={me}>
-      <div className="space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-100">Overview</h1>
-            <p className="text-sm text-slate-400">
-              Balances, activity, and market context.
-            </p>
+    <div style={{ display: "grid", gap: 12 }}>
+      <div className="card">
+        <div className="cardTitle">Overview</div>
+        <p className="cardSub">Balances, activity, and alerts.</p>
+      </div>
+
+      {err ? <div className="flashError">{err}</div> : null}
+
+      <div className="card">
+        <div className="cardTitle">Balances</div>
+        <div style={{ marginTop: 10, display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+          <div className="card">
+            <div className="cardSub">Main</div>
+            <div className="cardTitle">{money(totals.main)}</div>
           </div>
-          <div className="w-full lg:w-[420px]">
-            <MarketPanel kind="stock" symbol="AAPL" />
+          <div className="card">
+            <div className="cardSub">Trading</div>
+            <div className="cardTitle">{money(totals.trading)}</div>
           </div>
-        </div>
-
-        {err ? (
-          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
-            {err}
+          <div className="card">
+            <div className="cardSub">Affiliate</div>
+            <div className="cardTitle">{money(totals.affiliate)}</div>
           </div>
-        ) : null}
-
-        <MetricStrip items={metrics} />
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <BlotterTable title="Recent Transactions" rows={recentTxs} />
-          <CryptoTop15 />
-        </div>
-
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-semibold text-slate-200">Alerts</div>
-            <div className="text-xs text-slate-500">{alerts.length} total</div>
-          </div>
-
-          {alerts.length === 0 ? (
-            <div className="text-sm text-slate-400">No alerts.</div>
-          ) : (
-            <ul className="space-y-2">
-              {alerts.slice(0, 6).map((a) => (
-                <li
-                  key={a.$id}
-                  className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"
-                >
-                  <div className="text-sm text-slate-200">{a.title || "Notice"}</div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    {a.createdAt || a.$createdAt}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       </div>
-    </UnverifiedEmailGate>
+
+      <div className="card">
+        <div className="cardTitle">Recent transactions</div>
+        {recentTx.length ? (
+          <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+            {recentTx.map((t) => (
+              <div key={t.$id} className="card" style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                <div>
+                  <div className="cardTitle" style={{ fontSize: 13 }}>{t.type || "Transaction"}</div>
+                  <div className="cardSub">{new Date(t.createdAt || t.$createdAt).toLocaleString()}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div className="cardTitle" style={{ fontSize: 13 }}>{money(t.amount)}</div>
+                  <div className="cardSub">{t.status || "pending"}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="cardSub" style={{ marginTop: 8 }}>No transactions yet.</p>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="cardTitle">Alerts</div>
+        {alerts.length ? (
+          <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+            {alerts.slice(0, 6).map((a) => (
+              <div key={a.$id} className="card">
+                <div className="cardTitle" style={{ fontSize: 13 }}>{a.title}</div>
+                <div className="cardSub">{a.body}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="cardSub" style={{ marginTop: 8 }}>No notifications.</p>
+        )}
+      </div>
+    </div>
   );
 }
