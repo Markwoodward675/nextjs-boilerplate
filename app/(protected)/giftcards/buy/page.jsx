@@ -1,73 +1,73 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import UnverifiedEmailGate from "../../../../components/UnverifiedEmailGate";
-import MetricStrip from "../../../../components/MetricStrip";
-import { getCurrentUser, getUserWallets } from "../../../../lib/api";
+import { ensureUserBootstrap, createTransaction } from "../../../../lib/api";
 
-const money = (n) => `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-
-export default function GiftcardsBuyPage() {
+export default function GiftcardBuyPage() {
   const router = useRouter();
-  const [me, setMe] = useState(null);
-  const [wallets, setWallets] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [boot, setBoot] = useState(null);
+  const [vendor, setVendor] = useState("Amazon");
+  const [amount, setAmount] = useState("");
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
 
   useEffect(() => {
-    let cancel = false;
+    let c = false;
     (async () => {
-      const u = await getCurrentUser();
-      if (!u) return router.replace("/signin");
-      if (cancel) return;
-      setMe(u);
-      setWallets((await getUserWallets(u.$id)) || []);
-      setLoading(false);
+      const b = await ensureUserBootstrap().catch(() => null);
+      if (!b) return router.replace("/signin");
+      if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
+      if (!c) setBoot(b);
     })();
-    return () => { cancel = true; };
+    return () => (c = true);
   }, [router]);
 
-  const main = useMemo(() => (wallets || []).find((w) => w.currencyType === "main") || null, [wallets]);
+  const submit = async () => {
+    if (!boot) return;
+    setErr("");
+    setMsg("");
+    try {
+      const amt = Number(amount);
+      if (!amt || amt <= 0) throw new Error("Enter a valid amount.");
 
-  const metrics = [
-    { label: "Funding Source", value: "Main Account", sub: "wallet: main" },
-    { label: "Available", value: money(main?.balance), sub: "balance" },
-    { label: "Module", value: "Marketplace", sub: "giftcards" },
-    { label: "State", value: "Read-only", sub: "no fulfillment" },
-  ];
+      await createTransaction(boot.user.$id, {
+        type: "giftcard_buy",
+        amount: amt,
+        status: "pending",
+        meta: { vendor },
+      });
 
-  if (loading) return <div className="text-sm text-slate-400">Loading marketplace…</div>;
-  if (!me) return null;
+      setMsg("Request submitted.");
+      setAmount("");
+    } catch (e) {
+      setErr(e?.message || "Unable to submit.");
+    }
+  };
+
+  if (!boot) return <div className="cardSub">Loading…</div>;
 
   return (
-    <UnverifiedEmailGate>
-      <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold">Giftcard Marketplace</h1>
-          <p className="text-sm text-slate-400">Listings and pricing (terminal view).</p>
-        </div>
-
-        <MetricStrip items={metrics} />
-
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-          <div className="text-sm font-semibold text-slate-200">Listings</div>
-          <div className="mt-3 grid gap-3 md:grid-cols-3">
-            {["Amazon", "iTunes", "Steam"].map((name) => (
-              <div key={name} className="rounded-2xl border border-slate-800 bg-slate-950/35 p-4">
-                <div className="text-sm font-semibold">{name}</div>
-                <div className="mt-1 text-xs text-slate-500">Terminal listing</div>
-                <button
-                  type="button"
-                  className="mt-3 w-full rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 hover:bg-amber-500/15 transition"
-                  onClick={() => alert("Next: create marketplace order + transaction write.")}
-                >
-                  Create Order
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+    <div style={{ display: "grid", gap: 12 }}>
+      <div className="card">
+        <div className="cardTitle">Giftcards — Buy</div>
+        <div className="cardSub">Place a purchase request.</div>
       </div>
-    </UnverifiedEmailGate>
+
+      {err ? <div className="flashError">{err}</div> : null}
+      {msg ? <div className="flashOk">{msg}</div> : null}
+
+      <div className="card" style={{ display: "grid", gap: 10 }}>
+        <div>
+          <div className="cardSub" style={{ marginBottom: 6 }}>Vendor</div>
+          <input className="input" value={vendor} onChange={(e) => setVendor(e.target.value)} />
+        </div>
+        <div>
+          <div className="cardSub" style={{ marginBottom: 6 }}>Amount (USD)</div>
+          <input className="input" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </div>
+        <button className="btnPrimary" onClick={submit}>Submit</button>
+      </div>
+    </div>
   );
 }
