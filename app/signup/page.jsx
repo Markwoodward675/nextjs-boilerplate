@@ -16,13 +16,18 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const can = useMemo(() => email && password && fullName && password.length >= 8, [email, password, fullName]);
+  const can = useMemo(
+    () => email && password && fullName && password.length >= 8,
+    [email, password, fullName]
+  );
 
   const submit = async (e) => {
     e.preventDefault();
     setErr("");
     setBusy(true);
+
     try {
+      // ✅ bulletproof (object). referralId is safe to pass.
       await signUp({ fullName, email, password, referralId: ref || "" });
       router.replace("/verify-code");
     } catch (e2) {
@@ -42,23 +47,52 @@ export default function SignupPage() {
               <p className="cardSub">Secure access to your dashboard and services.</p>
             </div>
 
-            {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
+            {err ? (
+              <div className="flashError" style={{ marginTop: 12 }}>
+                {err}
+              </div>
+            ) : null}
 
             <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <div>
-                <div className="cardSub" style={{ marginBottom: 6 }}>Full name</div>
-                <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                <div className="cardSub" style={{ marginBottom: 6 }}>
+                  Full name
+                </div>
+                <input
+                  className="input"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="name"
+                />
               </div>
 
               <div>
-                <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-                <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <div className="cardSub" style={{ marginBottom: 6 }}>
+                  Email
+                </div>
+                <input
+                  className="input"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                />
               </div>
 
               <div>
-                <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
-                <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                <div className="cardSub" style={{ marginTop: 6 }}>Minimum 8 characters.</div>
+                <div className="cardSub" style={{ marginBottom: 6 }}>
+                  Password
+                </div>
+                <input
+                  className="input"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <div className="cardSub" style={{ marginTop: 6 }}>
+                  Minimum 8 characters.
+                </div>
               </div>
 
               <button className="btnPrimary" disabled={!can || busy}>
@@ -67,7 +101,9 @@ export default function SignupPage() {
 
               <div className="cardSub">
                 Already have an account?{" "}
-                <a href="/signin" style={{ color: "rgba(56,189,248,.95)" }}>Sign in</a>
+                <a href="/signin" style={{ color: "rgba(56,189,248,.95)" }}>
+                  Sign in
+                </a>
               </div>
             </form>
           </div>
