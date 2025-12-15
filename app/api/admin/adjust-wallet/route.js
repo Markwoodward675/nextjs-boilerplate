@@ -3,17 +3,22 @@ import { getAdminClient, requireAdminKey } from "../../../../lib/appwriteAdmin";
 
 const DB_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
 const WALLETS = process.env.NEXT_PUBLIC_APPWRITE_WALLETS_COLLECTION_ID || "wallets";
-const TX = process.env.NEXT_PUBLIC_APPWRITE_TRANSACTIONS_COLLECTION_ID || "transactions";
+const TRANSACTIONS = process.env.NEXT_PUBLIC_APPWRITE_TRANSACTIONS_COLLECTION_ID || "transactions";
+
+const TX_TYPES = {
+  ADMIN_ADJUSTMENT: "admin_adjustment",
+};
 
 export async function POST(req) {
   try {
     requireAdminKey(req);
-    const { walletDocId, delta, reason = "admin_adjustment" } = await req.json();
+
+    const { walletDocId, delta } = await req.json();
     if (!walletDocId || typeof delta !== "number") {
-      return NextResponse.json({ error: "Missing walletDocId/delta" }, { status: 400 });
+      return NextResponse.json({ error: "Missing walletDocId or delta" }, { status: 400 });
     }
 
-    const { db } = getAdminClient();
+    const { db, ID } = getAdminClient();
 
     const w = await db.getDocument(DB_ID, WALLETS, walletDocId);
     const newBal = Number(w.balance || 0) + Number(delta);
@@ -23,14 +28,15 @@ export async function POST(req) {
       updatedDate: new Date().toISOString(),
     });
 
-    await db.createDocument(DB_ID, TX, "unique()", {
+    const txId = ID.unique();
+    await db.createDocument(DB_ID, TRANSACTIONS, txId, {
+      transactionId: txId,
       userId: w.userId,
-      type: "admin_adjustment",
-      amount: Math.abs(delta),
-      status: "completed",
-      meta: JSON.stringify({ reason, walletDocId, delta }),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      walletId: String(w.walletId || w.$id),
+      amount: Math.abs(Number(delta)),
+      currencyType: w.currencyType,
+      transactionType: TX_TYPES.ADMIN_ADJUSTMENT,
+      transactionDate: new Date().toISOString(),
     });
 
     return NextResponse.json({ ok: true, updated });
