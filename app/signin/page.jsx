@@ -13,19 +13,21 @@ export default function SigninPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const can = useMemo(() => email && password, [email, password]);
+  const can = useMemo(() => email.trim() && password, [email, password]);
 
   const submit = async (e) => {
     e.preventDefault();
+    if (busy) return;
+
     setErr("");
     setBusy(true);
 
     try {
-      // ✅ Correct signature for your current lib/api.js
-      await signIn(email, password);
+      await signIn(email.trim(), password);
       router.replace("/verify-code");
     } catch (e2) {
-      setErr(e2?.message || "Unable to sign in.");
+      const msg = e2?.message || "Unable to sign in.";
+      setErr(msg);
     } finally {
       setBusy(false);
     }
