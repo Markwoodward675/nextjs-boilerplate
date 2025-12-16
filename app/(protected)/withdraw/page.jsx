@@ -1,121 +1,163 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ensureUserBootstrap, createTransaction, createAlert } from "../../../lib/api";
+import { Query } from "appwrite";
+import { db, DB_ID, COL, ENUM, errMsg, requireSession } from "../../../lib/appwriteClient";
+
+const COUNTRIES = [
+  "Afghanistan","Albania","Algeria","Argentina","Australia","Austria","Belgium","Brazil","Canada","China",
+  "Denmark","Egypt","Finland","France","Germany","Ghana","India","Ireland","Italy","Japan","Kenya",
+  "Mexico","Netherlands","Nigeria","Norway","Portugal","Qatar","Saudi Arabia","South Africa","Spain",
+  "Sweden","Switzerland","United Arab Emirates","United Kingdom","United States",
+];
+
+const CRYPTO = ["BTC", "ETH", "USDT", "BNB", "SOL", "XRP"];
 
 export default function WithdrawPage() {
-  const router = useRouter();
-  const [boot, setBoot] = useState(null);
-  const [method, setMethod] = useState("bank");
-  const [country, setCountry] = useState("");
+  const [user, setUser] = useState(null);
+  const [wallets, setWallets] = useState([]);
+  const [walletId, setWalletId] = useState("");
   const [amount, setAmount] = useState("");
-  const [details, setDetails] = useState({});
-  const [err, setErr] = useState("");
-  const [ok, setOk] = useState("");
+  const [method, setMethod] = useState("bank");
+
+  // bank fields
+  const [country, setCountry] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+
+  // crypto fields
+  const [asset, setAsset] = useState("BTC");
+  const [address, setAddress] = useState("");
+
   const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
 
   useEffect(() => {
-    let c = false;
+    let dead = false;
     (async () => {
-      const b = await ensureUserBootstrap().catch(() => null);
-      if (!b) return router.replace("/signin");
-      if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
-      if (!c) {
-        setBoot(b);
-        setCountry(b.profile.country || "");
+      try {
+        const u = await requireSession();
+        if (dead) return;
+        setUser(u);
+
+        const w = await db.listDocuments(DB_ID, COL.WALLETS, [Query.equal("userId", u.$id), Query.limit(50)]);
+        if (!dead) {
+          setWallets(w.documents || []);
+          setWalletId(w.documents?.[0]?.walletId || w.documents?.[0]?.$id || "");
+        }
+      } catch (e) {
+        if (!dead) setErr(errMsg(e, "Unable to load withdrawals."));
       }
     })();
-    return () => (c = true);
-  }, [router]);
+    return () => (dead = true);
+  }, []);
 
-  const showBank = useMemo(() => method === "bank" && country, [method, country]);
-  const showCrypto = useMemo(() => method === "crypto" && country, [method, country]);
+  const can = useMemo(() => {
+    if (!(Number(amount || 0) > 0) || !walletId) return false;
+    if (method === "bank") return !!country && !!bankName && !!accountName && !!accountNumber;
+    if (method === "crypto") return !!asset && !!address.trim();
+    return false;
+  }, [amount, walletId, method, country, bankName, accountName, accountNumber, asset, address]);
 
   const submit = async () => {
-    if (!boot) return;
-    setErr("");
-    setOk("");
+    if (!user?.$id) return setErr("Missing userId.");
     setBusy(true);
+    setErr("");
+    setMsg("");
     try {
-      const amt = Number(amount);
-      if (!amt || amt <= 0) throw new Error("Enter a valid amount.");
-      if (!country) throw new Error("Select a country.");
+      const payload =
+        method === "bank"
+          ? { country, bankName, accountName, accountNumber }
+          : { asset, address: address.trim() };
 
-      await createTransaction(boot.user.$id, {
-        type: "withdrawal",
-        amount: amt,
-        status: "pending",
-        meta: { method, country, details },
+      const res = await fetch("/api/withdraw-submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.$id,
+          walletId,
+          amount: Number(amount),
+          currencyType: ENUM.CURRENCY_USD,
+          method,
+          details: payload,
+        }),
       });
-
-      await createAlert(boot.user.$id, {
-        title: "Withdrawal request submitted",
-        body: "Your request is pending review.",
-        kind: "info",
-      });
-
-      setOk("Withdrawal request submitted.");
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) throw new Error(j?.error || "Withdraw request failed.");
+      setMsg("Withdrawal submitted. Awaiting confirmation.");
       setAmount("");
-      setDetails({});
     } catch (e) {
-      setErr(e?.message || "Unable to submit withdrawal.");
+      setErr(errMsg(e, "Withdraw request failed."));
     } finally {
       setBusy(false);
     }
   };
 
-  if (!boot) return <div className="cardSub">Loading…</div>;
-
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div className="card">
-        <div className="cardTitle">Withdraw</div>
-        <div className="cardSub">Submit a withdrawal request for review.</div>
+    <div className="dt-shell" style={{ paddingTop: 18, paddingBottom: 30 }}>
+      <div className="dt-card dt-glow">
+        <div className="dt-h2">Withdraw</div>
+        <div className="dt-subtle">Fields change depending on withdrawal method.</div>
       </div>
 
-      {err ? <div className="flashError">{err}</div> : null}
-      {ok ? <div className="flashOk">{ok}</div> : null}
+      {err ? <div className="dt-flash dt-flash-err" style={{ marginTop: 12 }}>{err}</div> : null}
+      {msg ? <div className="dt-flash dt-flash-ok" style={{ marginTop: 12 }}>{msg}</div> : null}
 
-      <div className="card" style={{ display: "grid", gap: 10 }}>
-        <div>
-          <div className="cardSub" style={{ marginBottom: 6 }}>Method</div>
-          <select className="select" value={method} onChange={(e) => setMethod(e.target.value)}>
+      <div className="dt-card" style={{ marginTop: 14 }}>
+        <div className="dt-form">
+          <label className="dt-label">Wallet</label>
+          <select className="dt-input" value={walletId} onChange={(e) => setWalletId(e.target.value)}>
+            {(wallets || []).map((w) => (
+              <option key={w.$id} value={w.walletId || w.$id}>
+                {String(w.currencyType || "WALLET")} • ${Number(w.balance || 0).toLocaleString()}
+              </option>
+            ))}
+          </select>
+
+          <label className="dt-label">Method</label>
+          <select className="dt-input" value={method} onChange={(e) => setMethod(e.target.value)}>
             <option value="bank">Bank transfer</option>
             <option value="crypto">Crypto</option>
           </select>
+
+          <label className="dt-label">Amount (USD)</label>
+          <input className="dt-input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+
+          {method === "bank" ? (
+            <>
+              <label className="dt-label">Country</label>
+              <select className="dt-input" value={country} onChange={(e) => setCountry(e.target.value)}>
+                <option value="">Select country…</option>
+                {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+
+              <label className="dt-label">Bank name</label>
+              <input className="dt-input" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+
+              <label className="dt-label">Account name</label>
+              <input className="dt-input" value={accountName} onChange={(e) => setAccountName(e.target.value)} />
+
+              <label className="dt-label">Account number</label>
+              <input className="dt-input" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+            </>
+          ) : (
+            <>
+              <label className="dt-label">Asset</label>
+              <select className="dt-input" value={asset} onChange={(e) => setAsset(e.target.value)}>
+                {CRYPTO.map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+
+              <label className="dt-label">Wallet address</label>
+              <input className="dt-input" value={address} onChange={(e) => setAddress(e.target.value)} />
+            </>
+          )}
+
+          <button className="dt-btn dt-btn-primary" disabled={!can || busy} onClick={submit}>
+            {busy ? "Submitting…" : "Submit withdrawal"}
+          </button>
         </div>
-
-        <div>
-          <div className="cardSub" style={{ marginBottom: 6 }}>Country</div>
-          <input className="input" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country" />
-        </div>
-
-        <div>
-          <div className="cardSub" style={{ marginBottom: 6 }}>Amount (USD)</div>
-          <input className="input" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
-        </div>
-
-        {showBank ? (
-          <>
-            <div className="cardTitle" style={{ fontSize: 13 }}>Bank details</div>
-            <input className="input" placeholder="Account name" onChange={(e) => setDetails({ ...details, accountName: e.target.value })} />
-            <input className="input" placeholder="Account number" onChange={(e) => setDetails({ ...details, accountNumber: e.target.value })} />
-            <input className="input" placeholder="Bank name" onChange={(e) => setDetails({ ...details, bankName: e.target.value })} />
-          </>
-        ) : null}
-
-        {showCrypto ? (
-          <>
-            <div className="cardTitle" style={{ fontSize: 13 }}>Crypto details</div>
-            <input className="input" placeholder="Network (e.g. TRC20)" onChange={(e) => setDetails({ ...details, network: e.target.value })} />
-            <input className="input" placeholder="Wallet address" onChange={(e) => setDetails({ ...details, address: e.target.value })} />
-          </>
-        ) : null}
-
-        <button className="btnPrimary" onClick={submit} disabled={busy}>
-          {busy ? "Submitting…" : "Submit withdrawal"}
-        </button>
       </div>
     </div>
   );
