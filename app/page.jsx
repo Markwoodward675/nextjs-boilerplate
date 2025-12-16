@@ -1,3 +1,4 @@
+// app/page.jsx
 import Link from "next/link";
 
 export default function HomePage() {
@@ -21,12 +22,15 @@ export default function HomePage() {
           </p>
 
           <div className="mt-6 flex flex-col sm:flex-row gap-2">
+            {/* ✅ FIX: send to /signup (your real route) */}
             <Link
-              href="/auth/register"
+              href="/signup"
               className="inline-flex items-center justify-center rounded-full bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-500"
             >
               Create account
             </Link>
+
+            {/* ✅ FIX: if user isn't signed in, /dashboard will redirect to /signin anyway via your protected layout */}
             <Link
               href="/dashboard"
               className="inline-flex items-center justify-center rounded-full border border-slate-700 px-6 py-2.5 text-sm font-medium text-slate-100 hover:bg-slate-900"
@@ -59,12 +63,8 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* "Head and shoulders" stylized line */}
             <div className="h-24 mb-4 relative">
-              <svg
-                viewBox="0 0 200 80"
-                className="w-full h-full text-sky-400/80"
-              >
+              <svg viewBox="0 0 200 80" className="w-full h-full text-sky-400/80">
                 <polyline
                   fill="none"
                   stroke="currentColor"
@@ -76,21 +76,15 @@ export default function HomePage() {
               <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
             </div>
 
-            {/* Multi-bar "volume" / heatmap */}
             <div className="flex items-end gap-[3px] h-16 mb-4">
-              {[8, 22, 16, 30, 22, 38, 18, 26, 32, 14, 28, 20].map(
-                (h, idx) => (
+              {[8, 22, 16, 30, 22, 38, 18, 26, 32, 14, 28, 20].map((h, idx) => (
+                <div key={idx} className="flex-1 flex items-end justify-center">
                   <div
-                    key={idx}
-                    className="flex-1 flex items-end justify-center"
-                  >
-                    <div
-                      className="w-[6px] rounded-full bg-gradient-to-t from-slate-800 via-sky-500/70 to-emerald-400/80"
-                      style={{ height: `${h}px` }}
-                    />
-                  </div>
-                )
-              )}
+                    className="w-[6px] rounded-full bg-gradient-to-t from-slate-800 via-sky-500/70 to-emerald-400/80"
+                    style={{ height: `${h}px` }}
+                  />
+                </div>
+              ))}
             </div>
 
             <p className="text-[11px] text-slate-400">
