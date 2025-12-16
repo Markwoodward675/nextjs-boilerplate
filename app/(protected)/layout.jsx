@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import AppShellPro from "../../components/AppShellPro";
 import AvatarModal from "../../components/AvatarModal";
 import { ensureUserBootstrap, signOut } from "../../lib/api";
+import FakeNotifications from "../components/FakeNotifications";
 
 export default function ProtectedLayout({ children }) {
   const router = useRouter();
@@ -110,3 +111,9 @@ export default function ProtectedLayout({ children }) {
 
   return <AppShellPro rightSlot={rightSlot}>{children}</AppShellPro>;
 }
+<body className="dt-body">
+  <header className="dt-header">...</header>
+  <main className="dt-main">{children}</main>
+
+  <FakeNotifications enabled sound />
+</body>
