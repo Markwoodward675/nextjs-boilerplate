@@ -1,11 +1,14 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ensureUserBootstrap,
   createOrRefreshVerifyCode,
   verifySixDigitCode,
+  signOut,
   getErrorMessage,
 } from "../../lib/api";
 
@@ -13,7 +16,7 @@ export default function VerifyCodePage() {
   const router = useRouter();
 
   const [boot, setBoot] = useState(null); // { user, profile }
-  const [busy, setBusy] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState("");
@@ -25,7 +28,7 @@ export default function VerifyCodePage() {
     let cancelled = false;
 
     (async () => {
-      setBusy(true);
+      setLoading(true);
       setErr("");
       setMsg("");
 
@@ -38,7 +41,6 @@ export default function VerifyCodePage() {
           return;
         }
 
-        // Already verified -> go dashboard
         if (b?.profile?.verificationCodeVerified) {
           router.replace("/dashboard");
           return;
@@ -46,10 +48,11 @@ export default function VerifyCodePage() {
 
         setBoot(b);
       } catch (e) {
-        setErr(getErrorMessage(e, "Bootstrap failed. Please sign in again."));
-        router.replace("/signin");
+        // ✅ show error instead of instantly redirecting away
+        setErr(getErrorMessage(e, "Session check failed. Please sign in again."));
+        setBoot(null);
       } finally {
-        if (!cancelled) setBusy(false);
+        if (!cancelled) setLoading(false);
       }
     })();
 
@@ -60,37 +63,61 @@ export default function VerifyCodePage() {
 
   const sendCode = async () => {
     if (!boot?.user?.$id) return;
+
     setErr("");
     setMsg("");
-    setBusy(true);
+    setLoading(true);
     try {
       await createOrRefreshVerifyCode(boot.user.$id);
       setMsg("A new 6-digit code was generated. Check your Alerts.");
     } catch (e) {
       setErr(getErrorMessage(e, "Unable to generate code."));
     } finally {
-      setBusy(false);
+      setLoading(false);
     }
   };
 
   const verify = async () => {
     if (!boot?.user?.$id) return;
+
     setErr("");
     setMsg("");
-    setBusy(true);
+    setLoading(true);
     try {
       await verifySixDigitCode(boot.user.$id, code);
-      setMsg("Verified! Redirecting…");
       router.replace("/dashboard");
     } catch (e) {
       setErr(getErrorMessage(e, "Invalid or expired code."));
     } finally {
-      setBusy(false);
+      setLoading(false);
     }
   };
 
-  if (busy && !boot) return <div className="cardSub">Checking your session…</div>;
-  if (!boot?.user) return <div className="cardSub">Redirecting…</div>;
+  if (loading && !boot) return <div className="cardSub">Checking your session…</div>;
+
+  // If bootstrap failed, allow user to go sign in again
+  if (!boot?.user) {
+    return (
+      <div className="contentCard">
+        <div className="contentInner">
+          <div className="card">
+            <div className="cardTitle">Verify your account</div>
+            <div className="cardSub" style={{ marginTop: 6 }}>
+              We couldn’t confirm your session. Please sign in again.
+            </div>
+          </div>
+
+          {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
+
+          <div className="card" style={{ marginTop: 12 }}>
+            <a className="btnPrimary" href="/signin" style={{ display: "inline-block", textAlign: "center" }}>
+              Go to Sign in
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="contentCard">
@@ -98,7 +125,7 @@ export default function VerifyCodePage() {
         <div className="card">
           <div className="cardTitle">Verify your account</div>
           <div className="cardSub" style={{ marginTop: 6 }}>
-            We need to verify your Day Trader account with a 6-digit code before you can access your dashboard.
+            Enter your 6-digit code to unlock your dashboard.
           </div>
           <div className="cardSub" style={{ marginTop: 10 }}>
             Signed in as <b>{boot.user.email}</b>.
@@ -109,8 +136,8 @@ export default function VerifyCodePage() {
         {msg ? <div className="flashOk" style={{ marginTop: 12 }}>{msg}</div> : null}
 
         <div className="card" style={{ marginTop: 12, display: "grid", gap: 10 }}>
-          <button className="btnPrimary" onClick={sendCode} disabled={busy}>
-            {busy ? "Working…" : "Send / regenerate 6-digit code"}
+          <button className="btnPrimary" onClick={sendCode} disabled={loading}>
+            {loading ? "Working…" : "Send / regenerate 6-digit code"}
           </button>
 
           <div>
@@ -125,19 +152,27 @@ export default function VerifyCodePage() {
               placeholder="••••••"
             />
             <div className="cardSub" style={{ marginTop: 6 }}>
-              Enter the code we generated for your account (you’ll see it in Alerts).
+              You’ll see the generated code inside your Alerts page.
             </div>
           </div>
 
-          <button className="btnPrimary" onClick={verify} disabled={!canVerify || busy}>
-            {busy ? "Verifying…" : "Verify code"}
+          <button className="btnPrimary" onClick={verify} disabled={!canVerify || loading}>
+            {loading ? "Verifying…" : "Verify code"}
           </button>
 
           <div className="cardSub">
             Not you?{" "}
-            <a href="/signout" style={{ color: "rgba(56,189,248,.95)" }}>
+            <button
+              type="button"
+              className="pillBtn"
+              onClick={async () => {
+                await signOut();
+                router.replace("/signin");
+              }}
+              style={{ marginLeft: 6 }}
+            >
               Sign out
-            </a>
+            </button>
           </div>
         </div>
       </div>
