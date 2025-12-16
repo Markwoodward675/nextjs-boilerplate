@@ -1,22 +1,36 @@
-// app/forgot-password/page.jsx
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import { requestPasswordRecovery } from "../../lib/api";
-
-const BG =
-  "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=2200&q=80";
+import { Suspense, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { completePasswordRecovery, getErrorMessage, requestPasswordRecovery } from "../../lib/api";
+import BrandLogo from "../../components/BrandLogo";
 
 export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<div className="dt-shell" style={{ padding: 24 }}><div className="dt-card">Loading…</div></div>}>
+      <ForgotPasswordInner />
+    </Suspense>
+  );
+}
+
+function ForgotPasswordInner() {
+  const router = useRouter();
+  const sp = useSearchParams();
+
+  const userId = sp.get("userId") || "";
+  const secret = sp.get("secret") || "";
+
+  const isResetMode = useMemo(() => !!userId && !!secret, [userId, secret]);
+
   const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
 
-  const can = useMemo(() => email.trim().includes("@"), [email]);
-
-  const submit = async (e) => {
+  const submitRequest = async (e) => {
     e.preventDefault();
     if (busy) return;
 
@@ -25,112 +39,124 @@ export default function ForgotPasswordPage() {
     setBusy(true);
 
     try {
-  await requestPasswordRecovery(email);
-  setMsg("If this email exists, we’ve sent a password reset link.");
-} catch (e2) {
-  setErr(e2?.message || "Unable to request password reset.");
-}
+      await requestPasswordRecovery(email);
+      setMsg("Password recovery email sent. Check your inbox (and spam).");
+    } catch (e2) {
+      setErr(getErrorMessage(e2, "Unable to send recovery email."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitReset = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+
+    setErr("");
+    setMsg("");
+    setBusy(true);
+
+    try {
+      await completePasswordRecovery({
+        userId,
+        secret,
+        password: pw,
+        confirmPassword: pw2,
+      });
+
+      setMsg("Password updated successfully. Redirecting to sign in…");
+      setTimeout(() => router.replace("/signin"), 800);
+    } catch (e2) {
+      setErr(getErrorMessage(e2, "Unable to reset password."));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <div
-      className="min-h-[calc(100vh-64px)] bg-black bg-cover bg-center px-4"
-      style={{ backgroundImage: `url('${BG}')` }}
-    >
-      <div className="min-h-[calc(100vh-64px)] bg-black/75 flex items-center justify-center">
-        <div className="w-full max-w-md rounded-2xl border border-yellow-500/25 bg-black/70 shadow-2xl backdrop-blur p-6">
-          {/* Brand header */}
-          <div className="flex items-center justify-center gap-3">
-            <div className="h-10 w-10 rounded-xl border border-yellow-500/40 bg-black/60 p-1 flex items-center justify-center">
-              <img src="/icon.png" alt="Day Trader" className="h-7 w-7" />
-            </div>
-            <div className="text-center leading-tight">
-              <div className="text-xl font-extrabold text-yellow-300">
-                Day Trader
-              </div>
-              <div className="text-[11px] uppercase tracking-[0.26em] text-amber-200/60">
-                Secure Recovery
-              </div>
-            </div>
+    <div className="dt-auth-wrap">
+      <div className="dt-auth-card">
+        <div className="dt-auth-head">
+          <div className="dt-auth-mark" aria-hidden>
+            <BrandLogo size={28} />
+          </div>
+          <div>
+            <div className="dt-auth-title">Day Trader</div>
+            <div className="dt-auth-sub">Secure access recovery</div>
+          </div>
+        </div>
+
+        <div className="dt-auth-body">
+          <div className="dt-h2" style={{ marginBottom: 6 }}>
+            {isResetMode ? "Set a new password" : "Forgot password"}
           </div>
 
-          <div className="mt-6">
-            <div className="text-lg font-semibold text-amber-100/85">
-              Forgot password
-            </div>
-            <div className="mt-1 text-[12px] text-amber-200/45">
-              Enter your email to receive a reset link.
-            </div>
+          <div className="dt-subtle">
+            {isResetMode
+              ? "Enter a new password for your account."
+              : "Enter your email to receive a password recovery link."}
           </div>
 
-          {err ? (
-            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-[12px] text-red-200">
-              {err}
-            </div>
-          ) : null}
+          {err ? <div className="dt-flash dt-flash-err" style={{ marginTop: 12 }}>{err}</div> : null}
+          {msg ? <div className="dt-flash dt-flash-ok" style={{ marginTop: 12 }}>{msg}</div> : null}
 
-          {msg ? (
-            <div className="mt-4 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-[12px] text-emerald-200">
-              {msg}
-            </div>
-          ) : null}
-
-          <form onSubmit={submit} className="mt-5 space-y-4">
-            <div>
-              <label className="block text-[12px] text-amber-200/55 mb-2">
-                Email
-              </label>
+          {!isResetMode ? (
+            <form onSubmit={submitRequest} className="dt-form" style={{ marginTop: 14 }}>
+              <label className="dt-label">Email</label>
               <input
-                className="w-full rounded-xl bg-black/60 text-amber-100/85 border border-yellow-500/25 px-4 py-3 outline-none focus:ring-2 focus:ring-yellow-400/40 focus:border-yellow-400/50"
+                className="dt-input"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 autoComplete="email"
               />
-            </div>
 
-            {/* Carded action button */}
-            <button
-              type="submit"
-              disabled={!can || busy}
-              className="group w-full rounded-2xl border border-yellow-500/25 bg-gradient-to-b from-yellow-500/20 via-orange-500/10 to-black/70 p-4 shadow-lg transition hover:-translate-y-[1px] hover:border-yellow-400/60 hover:shadow-yellow-500/10 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-left">
-                  <div className="text-sm font-extrabold text-yellow-300">
-                    {busy ? "Sending…" : "Send reset link"}
-                  </div>
-                  <div className="mt-1 text-[12px] text-amber-200/45">
-                    We’ll email you a secure reset link
-                  </div>
-                </div>
-                <div className="h-9 w-9 rounded-xl border border-yellow-500/25 bg-black/60 flex items-center justify-center text-yellow-300 transition group-hover:border-yellow-400/60">
-                  →
-                </div>
+              <button className="dt-btn dt-btn-primary" disabled={!email.trim() || busy} type="submit">
+                {busy ? "Sending…" : "Send recovery link"}
+              </button>
+
+              <div className="dt-subtle" style={{ marginTop: 10 }}>
+                Remembered your password?{" "}
+                <a className="dt-link" href="/signin">
+                  Sign in
+                </a>
               </div>
-            </button>
+            </form>
+          ) : (
+            <form onSubmit={submitReset} className="dt-form" style={{ marginTop: 14 }}>
+              <label className="dt-label">New password</label>
+              <input
+                className="dt-input"
+                type="password"
+                value={pw}
+                onChange={(e) => setPw(e.target.value)}
+                placeholder="Minimum 8 characters"
+                autoComplete="new-password"
+              />
 
-            {/* Secondary links */}
-            <div className="pt-2 flex items-center justify-between text-[12px]">
-              <Link
-                href="/signin"
-                className="text-amber-200/55 hover:text-yellow-300 transition"
-              >
-                Back to sign in
-              </Link>
-              <Link
-                href="/signup"
-                className="text-amber-200/55 hover:text-yellow-300 transition"
-              >
-                Create account
-              </Link>
-            </div>
-          </form>
+              <label className="dt-label">Confirm new password</label>
+              <input
+                className="dt-input"
+                type="password"
+                value={pw2}
+                onChange={(e) => setPw2(e.target.value)}
+                placeholder="Re-enter password"
+                autoComplete="new-password"
+              />
 
-          <div className="mt-6 text-center text-[11px] text-amber-200/30">
-            © {new Date().getFullYear()} Day Trader
-          </div>
+              <button className="dt-btn dt-btn-primary" disabled={pw.length < 8 || pw !== pw2 || busy} type="submit">
+                {busy ? "Updating…" : "Reset password"}
+              </button>
+
+              <div className="dt-subtle" style={{ marginTop: 10 }}>
+                Back to{" "}
+                <a className="dt-link" href="/signin">
+                  Sign in
+                </a>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </div>
