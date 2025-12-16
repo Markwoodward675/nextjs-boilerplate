@@ -1,76 +1,54 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ensureUserBootstrap, getUserAlerts, createOrRefreshVerifyCode } from "../../../lib/api";
+import { Query } from "appwrite";
+import { db, DB_ID, COL, errMsg, requireSession } from "../../../lib/appwriteClient";
 
 export default function AlertsPage() {
-  const router = useRouter();
-  const [boot, setBoot] = useState(null);
   const [alerts, setAlerts] = useState([]);
-  const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  const load = async (userId) => {
-    const a = await getUserAlerts(userId);
-    setAlerts(a);
-  };
-
   useEffect(() => {
-    let c = false;
+    let dead = false;
     (async () => {
-      const b = await ensureUserBootstrap().catch(() => null);
-      if (!b) return router.replace("/signin");
-      if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
-      const a = await getUserAlerts(b.user.$id);
-      if (!c) {
-        setBoot(b);
-        setAlerts(a);
+      try {
+        const u = await requireSession();
+        const a = await db.listDocuments(DB_ID, COL.ALERTS, [
+          Query.equal("userId", u.$id),
+          Query.orderDesc("$createdAt"),
+          Query.limit(100),
+        ]);
+        if (!dead) setAlerts(a.documents || []);
+      } catch (e) {
+        if (!dead) setErr(errMsg(e, "Unable to load notifications."));
       }
     })();
-    return () => (c = true);
-  }, [router]);
-
-  if (!boot) return <div className="cardSub">Loading…</div>;
+    return () => (dead = true);
+  }, []);
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div className="card">
-        <div className="cardTitle">Notifications</div>
-        <div className="cardSub">Security, deposits, affiliate, and platform updates.</div>
+    <div className="dt-shell" style={{ paddingTop: 18, paddingBottom: 30 }}>
+      <div className="dt-card dt-glow">
+        <div className="dt-h2">Notifications</div>
+        <div className="dt-subtle">Admin messages, transactions, investment progress, and platform updates.</div>
       </div>
 
-      {err ? <div className="flashError">{err}</div> : null}
-      {msg ? <div className="flashOk">{msg}</div> : null}
+      {err ? <div className="dt-flash dt-flash-err" style={{ marginTop: 12 }}>{err}</div> : null}
 
-      <div className="card" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button
-          className="btnPrimary"
-          onClick={async () => {
-            setMsg("");
-            setErr("");
-            try {
-              await createOrRefreshVerifyCode(boot.user.$id);
-              setMsg("Verification code generated. See newest notification.");
-              await load(boot.user.$id);
-            } catch (e) {
-              setErr(e?.message || "Unable to generate code.");
-            }
-          }}
-       
-
-      <div className="card">
+      <div className="dt-card" style={{ marginTop: 14 }}>
         {alerts.length ? (
-          <div style={{ display: "grid", gap: 8 }}>
+          <div className="dt-list">
             {alerts.map((a) => (
-              <div key={a.$id} className="card">
-                <div className="cardTitle" style={{ fontSize: 13 }}>{a.title}</div>
-                <div className="cardSub" style={{ marginTop: 4 }}>{a.body}</div>
+              <div key={a.$id} className="dt-row">
+                <div>
+                  <div className="dt-row-title">{a.alertTitle || a.title}</div>
+                  <div className="dt-row-sub">{a.alertMessage || a.body}</div>
+                </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="cardSub">No notifications.</div>
+          <div className="dt-subtle">No notifications.</div>
         )}
       </div>
     </div>
