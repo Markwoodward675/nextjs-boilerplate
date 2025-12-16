@@ -1,101 +1,104 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ensureUserBootstrap, createTransaction } from "../../../lib/api";
+import { Query } from "appwrite";
+import { db, DB_ID, COL, ENUM, errMsg, requireSession } from "../../../lib/appwriteClient";
 
 export default function DepositPage() {
-  const router = useRouter();
-  const [boot, setBoot] = useState(null);
+  const [user, setUser] = useState(null);
+  const [wallets, setWallets] = useState([]);
+  const [walletId, setWalletId] = useState("");
   const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState("bank");
   const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
-  const [ok, setOk] = useState("");
 
   useEffect(() => {
-    let cancel = false;
+    let dead = false;
     (async () => {
       try {
-        const b = await ensureUserBootstrap();
-        if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
-        if (!cancel) setBoot(b);
-      } catch {
-        router.replace("/signin");
+        const u = await requireSession();
+        if (dead) return;
+        setUser(u);
+
+        const w = await db.listDocuments(DB_ID, COL.WALLETS, [Query.equal("userId", u.$id), Query.limit(50)]);
+        if (!dead) {
+          setWallets(w.documents || []);
+          setWalletId(w.documents?.[0]?.walletId || w.documents?.[0]?.$id || "");
+        }
+      } catch (e) {
+        if (!dead) setErr(errMsg(e, "Unable to load deposit."));
       }
     })();
-    return () => (cancel = true);
-  }, [router]);
+    return () => (dead = true);
+  }, []);
 
-  const can = useMemo(() => Number(amount) > 0, [amount]);
+  const can = useMemo(() => Number(amount || 0) > 0 && !!walletId, [amount, walletId]);
 
-  const createInvoice = async () => {
-    if (!boot) return;
+  const submit = async () => {
+    if (!user?.$id) return setErr("Missing userId.");
     setBusy(true);
     setErr("");
-    setOk("");
+    setMsg("");
     try {
-      const amt = Number(amount);
-      if (!amt || amt <= 0) throw new Error("Enter a valid amount.");
-
-      // Order id includes userId for IPN mapping: DT-<userId>-<timestamp>
-      const order_id = `DT-${boot.user.$id}-${Date.now()}`;
-
-      const res = await fetch("/api/nowpayments", {
+      const res = await fetch("/api/deposit-submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          price_amount: amt,
-          price_currency: "usd",
-          pay_currency: "usdttrc20",
-          order_id,
+          userId: user.$id,
+          walletId,
+          amount: Number(amount),
+          currencyType: ENUM.CURRENCY_USD,
+          method,
         }),
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ? JSON.stringify(data.error) : "Invoice error");
-
-      // record pending deposit transaction (will be confirmed by IPN later)
-      await createTransaction(boot.user.$id, {
-        type: "deposit",
-        amount: amt,
-        status: "pending",
-        meta: { provider: "nowpayments", invoiceId: data.id, order_id },
-      });
-
-      // open invoice url
-      const url = data.invoice_url || data.payment_url;
-      if (!url) throw new Error("Missing invoice URL.");
-      window.location.href = url;
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) throw new Error(j?.error || "Deposit request failed.");
+      setMsg("Deposit submitted. Awaiting confirmation.");
+      setAmount("");
     } catch (e) {
-      setErr(e?.message || "Unable to create invoice.");
+      setErr(errMsg(e, "Deposit request failed."));
     } finally {
       setBusy(false);
     }
   };
 
-  if (!boot) return <div className="cardSub">Loading…</div>;
-
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div className="card">
-        <div className="cardTitle">Deposit</div>
-        <p className="cardSub">Create a crypto invoice via NOWPayments.</p>
+    <div className="dt-shell" style={{ paddingTop: 18, paddingBottom: 30 }}>
+      <div className="dt-card dt-glow">
+        <div className="dt-h2">Deposit</div>
+        <div className="dt-subtle">Submit a deposit request. Your wallet will update after confirmation.</div>
       </div>
 
-      {err ? <div className="flashError">{err}</div> : null}
-      {ok ? <div className="flashOk">{ok}</div> : null}
+      {err ? <div className="dt-flash dt-flash-err" style={{ marginTop: 12 }}>{err}</div> : null}
+      {msg ? <div className="dt-flash dt-flash-ok" style={{ marginTop: 12 }}>{msg}</div> : null}
 
-      <div className="card" style={{ display: "grid", gap: 10 }}>
-        <div>
-          <div className="cardSub" style={{ marginBottom: 6 }}>Amount (USD)</div>
-          <input className="input" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
+      <div className="dt-card" style={{ marginTop: 14 }}>
+        <div className="dt-form">
+          <label className="dt-label">Wallet</label>
+          <select className="dt-input" value={walletId} onChange={(e) => setWalletId(e.target.value)}>
+            {(wallets || []).map((w) => (
+              <option key={w.$id} value={w.walletId || w.$id}>
+                {String(w.currencyType || "WALLET")} • ${Number(w.balance || 0).toLocaleString()}
+              </option>
+            ))}
+          </select>
+
+          <label className="dt-label">Method</label>
+          <select className="dt-input" value={method} onChange={(e) => setMethod(e.target.value)}>
+            <option value="bank">Bank transfer</option>
+            <option value="card">Card</option>
+            <option value="crypto">Crypto</option>
+          </select>
+
+          <label className="dt-label">Amount (USD)</label>
+          <input className="dt-input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+
+          <button className="dt-btn dt-btn-primary" disabled={!can || busy} onClick={submit}>
+            {busy ? "Submitting…" : "Submit deposit"}
+          </button>
         </div>
-
-        <button className="btnPrimary" onClick={createInvoice} disabled={!can || busy}>
-          {busy ? "Creating invoice…" : "Continue to payment"}
-        </button>
-
-        <div className="cardSub">Payment currency: USDT (TRC20)</div>
       </div>
     </div>
   );
