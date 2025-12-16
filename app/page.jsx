@@ -92,6 +92,7 @@ export default function HomePage() {
               risk limits. Turn your trading into a repeatable process instead
               of random decisions.
             </p>
+            <p className="text-xs text-slate-500 mt-2">Build: 2025-12-16</p>
           </div>
         </div>
       </div>
