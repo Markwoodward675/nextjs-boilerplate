@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function RegisterRedirect() {
+export default function AuthRegisterRedirect() {
   redirect("/signup");
 }
