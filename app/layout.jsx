@@ -1,8 +1,12 @@
+// app/layout.jsx
 import "./globals.css";
 import BrandLogo from "../components/BrandLogo";
 
 export const metadata = {
-  title: "Day Trader",
+  title: {
+    default: "Day Trader",
+    template: "%s · Day Trader",
+  },
   description: "Markets • Wallets • Execution",
   icons: {
     icon: [
@@ -30,6 +34,7 @@ export default function RootLayout({ children }) {
             <div className="h-9 w-9 rounded-xl border border-yellow-500/60 bg-black/50 flex items-center justify-center overflow-hidden">
               <BrandLogo size={28} />
             </div>
+
             <div>
               <div className="font-semibold text-yellow-400 leading-tight">
                 Day Trader
