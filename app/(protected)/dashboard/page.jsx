@@ -1,119 +1,144 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ensureUserBootstrap, getUserTransactions, getUserAlerts } from "../../../lib/api";
-
-const money = (n) => `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+import Link from "next/link";
+import { Query } from "appwrite";
+import { db, DB_ID, COL, ENUM, errMsg, requireSession } from "../../../lib/appwriteClient";
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [boot, setBoot] = useState(null);
-  const [txs, setTxs] = useState([]);
+  const [user, setUser] = useState(null);
+  const [wallets, setWallets] = useState([]);
+  const [tx, setTx] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [err, setErr] = useState("");
 
+  const load = async (uid) => {
+    const [w, t, a] = await Promise.all([
+      db.listDocuments(DB_ID, COL.WALLETS, [Query.equal("userId", uid), Query.limit(50)]),
+      db.listDocuments(DB_ID, COL.TX, [Query.equal("userId", uid), Query.orderDesc("transactionDate"), Query.limit(25)]),
+      db.listDocuments(DB_ID, COL.ALERTS, [Query.equal("userId", uid), Query.orderDesc("$createdAt"), Query.limit(10)]),
+    ]);
+    setWallets(w.documents || []);
+    setTx(t.documents || []);
+    setAlerts(a.documents || []);
+  };
+
   useEffect(() => {
-    let cancel = false;
+    let dead = false;
     (async () => {
       try {
-        const b = await ensureUserBootstrap();
-        if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
-
-        const [t, a] = await Promise.all([
-          getUserTransactions(b.user.$id),
-          getUserAlerts(b.user.$id),
-        ]);
-
-        if (!cancel) {
-          setBoot(b);
-          setTxs(t);
-          setAlerts(a);
-        }
+        const u = await requireSession();
+        if (dead) return;
+        setUser(u);
+        await load(u.$id);
       } catch (e) {
-        if (!cancel) setErr(e?.message || "Dashboard unavailable.");
+        if (!dead) setErr(errMsg(e, "Unable to load dashboard."));
       }
     })();
-    return () => (cancel = true);
-  }, [router]);
+    return () => (dead = true);
+  }, []);
 
   const totals = useMemo(() => {
-    const map = { main: 0, trading: 0, affiliate: 0 };
-    (boot?.wallets || []).forEach((w) => {
-      if (w.currencyType === "main") map.main = Number(w.balance || 0);
-      if (w.currencyType === "trading") map.trading = Number(w.balance || 0);
-      if (w.currencyType === "affiliate") map.affiliate = Number(w.balance || 0);
-    });
-    return map;
-  }, [boot?.wallets]);
+    const walletsTotal = (wallets || []).reduce((sum, w) => sum + Number(w.balance || 0), 0);
 
-  const recentTx = useMemo(() => (txs || []).slice(0, 10), [txs]);
+    const invested = (tx || [])
+      .filter((x) => x.transactionType === ENUM.TX_TYPE_INVEST)
+      .reduce((s, x) => s + Number(x.amount || 0), 0);
 
-  if (!boot) return <div className="cardSub">Loading…</div>;
+    const roiEarned = (tx || [])
+      .filter((x) => x.transactionType === ENUM.TX_TYPE_ROI)
+      .reduce((s, x) => s + Number(x.amount || 0), 0);
+
+    const aff = (tx || [])
+      .filter((x) => x.transactionType === ENUM.TX_TYPE_AFF)
+      .reduce((s, x) => s + Number(x.amount || 0), 0);
+
+    // You requested: invest return balance minus invested + affiliate etc
+    const investNet = roiEarned - invested;
+
+    return {
+      walletsTotal,
+      invested,
+      roiEarned,
+      aff,
+      investNet,
+      total: walletsTotal + investNet + aff,
+    };
+  }, [wallets, tx]);
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div className="card">
-        <div className="cardTitle">Overview</div>
-        <p className="cardSub">Balances, activity, and alerts.</p>
-      </div>
-
-      {err ? <div className="flashError">{err}</div> : null}
-
-      <div className="card">
-        <div className="cardTitle">Balances</div>
-        <div style={{ marginTop: 10, display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-          <div className="card">
-            <div className="cardSub">Main</div>
-            <div className="cardTitle">{money(totals.main)}</div>
-          </div>
-          <div className="card">
-            <div className="cardSub">Trading</div>
-            <div className="cardTitle">{money(totals.trading)}</div>
-          </div>
-          <div className="card">
-            <div className="cardSub">Affiliate</div>
-            <div className="cardTitle">{money(totals.affiliate)}</div>
-          </div>
+    <div className="dt-shell" style={{ paddingTop: 18, paddingBottom: 30 }}>
+      <div className="dt-card dt-glow">
+        <div className="dt-h2">Overview</div>
+        <div className="dt-subtle">
+          Total balance includes wallet balances + affiliate commissions + investment net (ROI − principal).
         </div>
       </div>
 
-      <div className="card">
-        <div className="cardTitle">Recent transactions</div>
-        {recentTx.length ? (
-          <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-            {recentTx.map((t) => (
-              <div key={t.$id} className="card" style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                <div>
-                  <div className="cardTitle" style={{ fontSize: 13 }}>{t.type || "Transaction"}</div>
-                  <div className="cardSub">{new Date(t.createdAt || t.$createdAt).toLocaleString()}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="cardTitle" style={{ fontSize: 13 }}>{money(t.amount)}</div>
-                  <div className="cardSub">{t.status || "pending"}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="cardSub" style={{ marginTop: 8 }}>No transactions yet.</p>
-        )}
+      {err ? <div className="dt-flash dt-flash-err" style={{ marginTop: 12 }}>{err}</div> : null}
+
+      <div className="dt-grid" style={{ marginTop: 14 }}>
+        <div className="dt-card">
+          <div className="dt-k">Total Balance</div>
+          <div className="dt-money">${totals.total.toLocaleString()}</div>
+          <div className="dt-subtle">Wallets + Investment Net + Affiliate</div>
+        </div>
+
+        <div className="dt-card">
+          <div className="dt-k">Investment Net</div>
+          <div className="dt-money">${totals.investNet.toLocaleString()}</div>
+          <div className="dt-subtle">ROI − Invested</div>
+        </div>
+
+        <div className="dt-card">
+          <div className="dt-k">Affiliate Earned</div>
+          <div className="dt-money">${totals.aff.toLocaleString()}</div>
+          <div className="dt-subtle">Commission credits</div>
+        </div>
       </div>
 
-      <div className="card">
-        <div className="cardTitle">Alerts</div>
-        {alerts.length ? (
-          <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-            {alerts.slice(0, 6).map((a) => (
-              <div key={a.$id} className="card">
-                <div className="cardTitle" style={{ fontSize: 13 }}>{a.title}</div>
-                <div className="cardSub">{a.body}</div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="cardSub" style={{ marginTop: 8 }}>No notifications.</p>
-        )}
+      <div className="dt-grid" style={{ marginTop: 14 }}>
+        <div className="dt-card">
+          <div className="dt-h3">Recent Transactions</div>
+          {tx?.length ? (
+            <div className="dt-list">
+              {tx.slice(0, 8).map((t) => (
+                <div key={t.$id} className="dt-row">
+                  <div>
+                    <div className="dt-row-title">{t.transactionType}</div>
+                    <div className="dt-row-sub">{new Date(t.transactionDate).toLocaleString()}</div>
+                  </div>
+                  <div className="dt-row-right">
+                    <div className="dt-row-amt">${Number(t.amount || 0).toLocaleString()}</div>
+                    <div className="dt-row-sub">{t.status || "pending"}</div>
+                  </div>
+                </div>
+              ))}
+              <Link className="dt-link" href="/transactions">View all →</Link>
+            </div>
+          ) : (
+            <div className="dt-subtle">No transactions yet.</div>
+          )}
+        </div>
+
+        <div className="dt-card">
+          <div className="dt-h3">Alerts</div>
+          {alerts?.length ? (
+            <div className="dt-list">
+              {alerts.slice(0, 6).map((a) => (
+                <div key={a.$id} className="dt-row">
+                  <div>
+                    <div className="dt-row-title">{a.alertTitle || a.title}</div>
+                    <div className="dt-row-sub">{a.alertMessage || a.body}</div>
+                  </div>
+                </div>
+              ))}
+              <Link className="dt-link" href="/alerts">Open notifications →</Link>
+            </div>
+          ) : (
+            <div className="dt-subtle">No notifications.</div>
+          )}
+        </div>
       </div>
     </div>
   );
