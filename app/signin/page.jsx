@@ -4,6 +4,10 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, getErrorMessage } from "../../lib/api";
 
+const BG =
+  "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=2000&q=80";
+const ICON_SRC = "/icon.png"; // put your icon in /public/icon.png (or change path)
+
 export default function SigninPage() {
   const router = useRouter();
 
@@ -13,16 +17,17 @@ export default function SigninPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const can = useMemo(() => String(email).trim() && String(password), [email, password]);
+  const can = useMemo(() => email.trim() && password, [email, password]);
 
   const submit = async (e) => {
     e.preventDefault();
+    if (busy) return;
+
     setErr("");
     setBusy(true);
 
     try {
-      // supports both signatures in your lib/api.js (email,password or object)
-      await signIn(email, password);
+      await signIn(email.trim(), password);
       router.replace("/verify-code");
     } catch (e2) {
       setErr(getErrorMessage(e2, "Unable to sign in."));
@@ -32,65 +37,85 @@ export default function SigninPage() {
   };
 
   return (
-    <div className="page-bg">
-      <div className="shell">
-        <div className="contentCard">
-          <div className="contentInner">
-            <div className="card">
-              <div className="cardTitle">Welcome back</div>
-              <p className="cardSub">Sign in with your email and password to continue.</p>
+    <div
+      className="min-h-screen flex items-center justify-center bg-black bg-cover bg-center px-4"
+      style={{ backgroundImage: `url('${BG}')` }}
+    >
+      <div className="w-full max-w-md bg-black/80 border border-yellow-500/80 rounded-2xl p-6 shadow-2xl backdrop-blur">
+        {/* Header */}
+        <div className="flex items-center justify-center gap-3">
+          <img
+            src={ICON_SRC}
+            alt="Day Trader"
+            className="h-10 w-10 rounded-xl border border-yellow-500/50 bg-black/60 p-1"
+            onError={(e) => {
+              // hide broken image gracefully
+              e.currentTarget.style.display = "none";
+            }}
+          />
+          <div className="text-center">
+            <div className="text-2xl font-extrabold text-yellow-400 leading-tight">
+              Day Trader
             </div>
-
-            {err ? (
-              <div className="flashError" style={{ marginTop: 12 }}>
-                {err}
-              </div>
-            ) : null}
-
-            <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              <div>
-                <div className="cardSub" style={{ marginBottom: 6 }}>
-                  Email
-                </div>
-                <input
-                  className="input"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                />
-              </div>
-
-              <div>
-                <div className="cardSub" style={{ marginBottom: 6 }}>
-                  Password
-                </div>
-                <input
-                  className="input"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-              </div>
-
-              <button className="btnPrimary" disabled={!can || busy}>
-                {busy ? "Signing in…" : "Sign in"}
-              </button>
-
-              <div className="cardSub">
-                New here?{" "}
-                <a href="/signup" style={{ color: "rgba(56,189,248,.95)" }}>
-                  Create an account
-                </a>
-              </div>
-            </form>
-
-            <div className="cardSub" style={{ marginTop: 10, opacity: 0.8 }}>
-              Tip: After signing in, you’ll verify with a one-time 6-digit code sent to your email.
+            <div className="text-[11px] uppercase tracking-[0.28em] text-yellow-200/80">
+              Markets • Wallets • Execution
             </div>
           </div>
         </div>
+
+        <div className="mt-5 text-center">
+          <p className="text-gray-200 font-semibold">Sign in</p>
+          <p className="text-gray-300 text-sm mt-1">
+            Access your dashboard securely.
+          </p>
+        </div>
+
+        {err ? (
+          <div className="mt-4 bg-red-600/20 border border-red-500/70 text-red-100 p-3 rounded-lg text-sm">
+            {err}
+          </div>
+        ) : null}
+
+        <form onSubmit={submit} className="mt-6 space-y-4">
+          <div>
+            <label className="block text-sm text-gray-200 mb-1">Email</label>
+            <input
+              className="w-full p-3 rounded-lg bg-black/50 text-white border border-yellow-500/70 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-200 mb-1">Password</label>
+            <input
+              className="w-full p-3 rounded-lg bg-black/50 text-white border border-yellow-500/70 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+            />
+          </div>
+
+          <button
+            className="w-full p-3 rounded-lg bg-yellow-500 text-black font-extrabold hover:bg-yellow-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={!can || busy}
+            type="submit"
+          >
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+
+          <p className="text-gray-300 text-center text-sm">
+            New here?{" "}
+            <a className="text-yellow-400 hover:underline" href="/signup">
+              Create an account
+            </a>
+          </p>
+        </form>
       </div>
     </div>
   );
