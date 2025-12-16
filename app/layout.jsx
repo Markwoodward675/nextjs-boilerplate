@@ -1,12 +1,8 @@
 // app/layout.jsx
 import "./globals.css";
-import BrandLogo from "../components/BrandLogo";
 
 export const metadata = {
-  title: {
-    default: "Day Trader",
-    template: "%s · Day Trader",
-  },
+  title: { default: "Day Trader", template: "%s · Day Trader" },
   description: "Markets • Wallets • Execution",
   icons: {
     icon: [
@@ -22,33 +18,16 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#050814", // deep neon-black
+  themeColor: "#050814",
 };
+
+import RootChrome from "./root-chrome";
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className="dt-body">
-        <header className="dt-header">
-          <div className="dt-shell dt-header-inner">
-            <div className="dt-brand">
-              <div className="dt-brand-mark" aria-hidden>
-                <BrandLogo size={28} />
-              </div>
-              <div className="dt-brand-text">
-                <div className="dt-brand-title">Day Trader</div>
-                <div className="dt-brand-sub">Markets • Wallets • Execution</div>
-              </div>
-            </div>
-
-            <nav className="dt-top-actions">
-              <a className="dt-chip" href="/signin">Sign in</a>
-              <a className="dt-chip dt-chip-primary" href="/signup">Create account</a>
-            </nav>
-          </div>
-        </header>
-
-        <main className="dt-main">{children}</main>
+        <RootChrome>{children}</RootChrome>
       </body>
     </html>
   );
