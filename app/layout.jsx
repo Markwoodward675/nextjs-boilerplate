@@ -22,30 +22,33 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#000000",
+  themeColor: "#050814", // deep neon-black
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className="bg-black text-white antialiased">
-        {/* Header matches darker gold/orange theme */}
-        <header className="sticky top-0 z-50 border-b border-yellow-500/20 bg-black/75 backdrop-blur">
-          <div className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl border border-yellow-500/40 bg-black/60 flex items-center justify-center overflow-hidden">
-              <BrandLogo size={28} />
-            </div>
-
-            <div className="leading-tight">
-              <div className="font-semibold text-yellow-300">Day Trader</div>
-              <div className="text-[11px] text-amber-200/45">
-                Markets • Wallets • Execution
+      <body className="dt-body">
+        <header className="dt-header">
+          <div className="dt-shell dt-header-inner">
+            <div className="dt-brand">
+              <div className="dt-brand-mark" aria-hidden>
+                <BrandLogo size={28} />
+              </div>
+              <div className="dt-brand-text">
+                <div className="dt-brand-title">Day Trader</div>
+                <div className="dt-brand-sub">Markets • Wallets • Execution</div>
               </div>
             </div>
+
+            <nav className="dt-top-actions">
+              <a className="dt-chip" href="/signin">Sign in</a>
+              <a className="dt-chip dt-chip-primary" href="/signup">Create account</a>
+            </nav>
           </div>
         </header>
 
-        <main>{children}</main>
+        <main className="dt-main">{children}</main>
       </body>
     </html>
   );
