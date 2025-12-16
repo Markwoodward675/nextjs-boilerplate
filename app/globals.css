@@ -1,5 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================
+   Base Reset / Defaults
+========================================= */
 :root {
   color-scheme: dark;
+
+  /* Core palette */
+  --bg0: #02030a; /* deepest */
+  --bg1: #050814; /* main neon-black */
+  --bg2: rgba(0, 0, 0, 0.35);
+  --panel: rgba(0, 0, 0, 0.28);
+
+  --ink: rgba(255, 255, 255, 0.88);
+  --muted: rgba(255, 255, 255, 0.62);
+
+  --neon-blue: rgba(56, 189, 248, 0.95);
+  --neon-purple: rgba(168, 85, 247, 0.95);
+
+  --gold: rgba(250, 204, 21, 0.95);
+  --orange: rgba(251, 146, 60, 0.92);
+  --yellow: rgba(253, 224, 71, 0.95);
+
+  --border-gold: rgba(250, 204, 21, 0.18);
+  --border-blue: rgba(56, 189, 248, 0.16);
+  --border-purple: rgba(168, 85, 247, 0.16);
+
+  --shadow-neon: 0 0 0 1px rgba(59, 130, 246, 0.14),
+    0 0 34px rgba(168, 85, 247, 0.16);
+
+  --radius-xl: 22px;
+  --radius-lg: 18px;
+  --radius-md: 14px;
 }
 
 * {
@@ -8,15 +42,18 @@
 
 html,
 body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
   height: 100%;
-  background: #020617; /* slate-950 */
-  color: #e5e7eb; /* gray-200 */
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica,
+    Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  background: radial-gradient(1200px 700px at 10% 5%, rgba(56, 189, 248, 0.18), transparent 55%),
+    radial-gradient(900px 520px at 85% 15%, rgba(168, 85, 247, 0.22), transparent 55%),
+    radial-gradient(900px 520px at 55% 85%, rgba(59, 130, 246, 0.14), transparent 55%),
+    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 100%);
+  color: var(--ink);
 }
 
 a {
@@ -24,237 +61,449 @@ a {
   text-decoration: none;
 }
 
-.page-bg {
-  min-height: 100vh;
-  background:
-    radial-gradient(900px 360px at 10% -10%, rgba(56, 189, 248, 0.18), transparent 60%),
-    radial-gradient(700px 300px at 90% -10%, rgba(168, 85, 247, 0.18), transparent 55%),
-    #020617;
-  padding: 10px 10px 20px;
+img {
+  max-width: 100%;
+  height: auto;
 }
 
-.shell {
-  max-width: 1120px;
+/* =========================================
+   Shared Layout Helpers (legacy + new)
+========================================= */
+.shell,
+.dt-shell {
+  width: min(1100px, calc(100% - 32px));
   margin: 0 auto;
 }
 
-.header {
+.page-bg {
+  min-height: calc(100vh - 64px);
+  padding: 28px 0 40px;
+}
+
+.dt-main {
+  padding: 28px 0 40px;
+}
+
+/* =========================================
+   Header (used by app/layout.jsx)
+========================================= */
+.dt-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid var(--border-gold);
+  background: rgba(2, 3, 10, 0.56);
+  backdrop-filter: blur(10px);
+}
+
+.dt-header-inner {
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin: 0 auto 12px auto;
+  gap: 14px;
 }
 
-.brand {
+.dt-brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 220px;
 }
 
-.brandLogo {
-  width: 40px;
+.dt-brand-mark {
   height: 40px;
-  border-radius: 999px;
+  width: 40px;
+  border-radius: 14px;
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.10), 0 0 28px rgba(168, 85, 247, 0.12);
+  display: grid;
+  place-items: center;
   overflow: hidden;
-  border: 1px solid rgba(248, 250, 252, 0.9);
-  background: #020617;
-  flex-shrink: 0;
 }
 
-.brandLogo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+.dt-brand-title {
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  color: var(--gold);
+  line-height: 1.1;
 }
 
-.brandMain {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.brandSub {
+.dt-brand-sub {
   font-size: 11px;
-  color: rgba(148, 163, 184, 0.95);
-  margin-top: 1px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(251, 146, 60, 0.65);
+  margin-top: 2px;
 }
 
-.headerRight {
+.dt-top-actions {
   display: flex;
   align-items: center;
   gap: 10px;
-  text-align: right;
-  font-size: 12px;
-  color: rgba(148, 163, 184, 0.95);
 }
 
-.pillBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
+/* chip buttons in header */
+.dt-chip {
   border-radius: 999px;
-  border: 1px solid rgba(30, 64, 175, 0.7);
-  background: rgba(15, 23, 42, 0.95);
-  color: #e5e7eb;
-  font-size: 12px;
-  cursor: pointer;
-  transition: 160ms ease;
+  border: 1px solid var(--border-gold);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.78);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.pillBtn:hover {
-  border-color: rgba(56, 189, 248, 0.9);
+.dt-chip:hover {
   transform: translateY(-1px);
+  border-color: rgba(250, 204, 21, 0.45);
+  box-shadow: var(--shadow-neon);
 }
 
-.mainGrid {
+.dt-chip-primary {
+  background: linear-gradient(180deg, rgba(250, 204, 21, 0.22), rgba(251, 146, 60, 0.10));
+  color: rgba(250, 204, 21, 0.95);
+}
+
+/* =========================================
+   Landing Page (dt-*)
+========================================= */
+.dt-landing {
+  padding-top: 26px;
+}
+
+.dt-hero {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 12px;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 18px;
+  align-items: start;
 }
 
 @media (max-width: 900px) {
-  .mainGrid {
+  .dt-hero {
     grid-template-columns: 1fr;
   }
 }
 
-.navCard,
-.contentCard {
-  border-radius: 18px;
-  border: 1px solid rgba(51, 65, 85, 0.75);
-  background: rgba(15, 23, 42, 0.55);
-  overflow: hidden;
-}
-
-.navInner {
-  padding: 12px;
-}
-
-.navTitle {
+.dt-kicker {
   font-size: 11px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.26em;
   text-transform: uppercase;
-  color: rgba(148, 163, 184, 0.95);
-  margin: 0 0 10px 0;
+  color: rgba(56, 189, 248, 0.75);
 }
 
-.navList {
+.dt-h1 {
+  margin-top: 10px;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.08;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.dt-h1-accent {
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(168, 85, 247, 0.20);
+}
+
+.dt-lead {
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.70);
+  max-width: 60ch;
+}
+
+.dt-action-grid {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+  max-width: 580px;
+}
+
+/* Boxed action buttons as cards */
+.dt-action-card {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  border: 1px solid var(--border-gold);
+  background: rgba(0, 0, 0, 0.26);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.10);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dt-action-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(250, 204, 21, 0.42);
+  box-shadow: var(--shadow-neon);
+}
+
+.dt-action-primary {
+  background: linear-gradient(180deg, rgba(250, 204, 21, 0.18), rgba(251, 146, 60, 0.10));
+}
+
+.dt-action-muted {
+  border-color: rgba(56, 189, 248, 0.16);
+}
+
+.dt-action-title {
+  font-weight: 900;
+  color: rgba(250, 204, 21, 0.92);
+}
+
+.dt-action-sub {
+  margin-top: 3px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.dt-action-arrow {
+  height: 38px;
+  min-width: 38px;
+  padding: 0 10px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  background: rgba(2, 3, 10, 0.58);
+  color: rgba(56, 189, 248, 0.92);
+}
+
+.dt-features {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.navLink {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 11px;
-  border-radius: 14px;
-  border: 1px solid rgba(30, 64, 175, 0.35);
-  background: rgba(2, 6, 23, 0.35);
-  color: #e5e7eb;
+.dt-pill {
+  border-radius: 999px;
+  padding: 8px 10px;
   font-size: 12px;
-  transition: 160ms ease;
+  border: 1px solid rgba(168, 85, 247, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.68);
 }
 
-.navLink:hover {
-  border-color: rgba(56, 189, 248, 0.85);
-  background: rgba(2, 6, 23, 0.55);
-  transform: translateY(-1px);
+.dt-panel {
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  background: rgba(0, 0, 0, 0.26);
+  padding: 16px;
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.10), 0 0 40px rgba(59, 130, 246, 0.12);
 }
 
-.navLinkActive {
-  border-color: rgba(56, 189, 248, 0.95);
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(168, 85, 247, 0.10));
+.dt-panel-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
 }
 
-.navIcon {
-  font-size: 14px;
-  width: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.dt-panel-kicker {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(251, 146, 60, 0.70);
 }
 
-.contentInner {
-  padding: 14px;
+.dt-panel-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.62);
 }
 
-.card {
+.dt-badge {
+  border-radius: 999px;
+  padding: 8px 10px;
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(250, 204, 21, 0.85);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.dt-scan {
+  margin: 14px 0;
+  height: 110px;
+  border-radius: 18px;
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  background:
+    linear-gradient(180deg, rgba(56, 189, 248, 0.08), rgba(168, 85, 247, 0.06)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.06) 0px,
+      rgba(255, 255, 255, 0.06) 1px,
+      transparent 1px,
+      transparent 10px
+    );
+  position: relative;
+  overflow: hidden;
+}
+
+.dt-scan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(400px 120px at 20% 40%, rgba(56, 189, 248, 0.18), transparent 60%);
+}
+
+.dt-panel-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.60);
+}
+
+.dt-mini-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.dt-mini {
   border-radius: 16px;
-  border: 1px solid rgba(51, 65, 85, 0.75);
-  background: rgba(2, 6, 23, 0.35);
+  border: 1px solid rgba(250, 204, 21, 0.14);
+  background: rgba(2, 3, 10, 0.45);
   padding: 12px;
 }
 
+.dt-mini-title {
+  font-weight: 900;
+  color: rgba(250, 204, 21, 0.85);
+}
+
+.dt-mini-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.dt-footer {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(250, 204, 21, 0.12);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* =========================================
+   Legacy UI Classes (so existing pages keep working)
+   Your current pages use these classes already.
+========================================= */
+.contentCard {
+  width: min(520px, calc(100% - 32px));
+  margin: 0 auto;
+  border-radius: 22px;
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  background: rgba(0, 0, 0, 0.30);
+  box-shadow: var(--shadow-neon);
+}
+
+.contentInner {
+  padding: 18px;
+}
+
+.card {
+  border-radius: 18px;
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  background: rgba(2, 3, 10, 0.42);
+  padding: 14px;
+}
+
 .cardTitle {
-  font-size: 14px;
-  font-weight: 700;
-  color: #f1f5f9;
-  margin: 0 0 6px 0;
+  font-weight: 900;
+  color: rgba(250, 204, 21, 0.90);
+  letter-spacing: 0.2px;
 }
 
 .cardSub {
   font-size: 12px;
-  color: rgba(148, 163, 184, 0.95);
-  margin: 0;
+  color: rgba(255, 255, 255, 0.60);
+  line-height: 1.45;
 }
 
-.input,
-.select {
+.input {
   width: 100%;
-  border-radius: 12px;
-  border: 1px solid rgba(51, 65, 85, 0.8);
-  background: rgba(2, 6, 23, 0.55);
-  color: #e5e7eb;
-  padding: 10px 12px;
-  font-size: 13px;
+  border-radius: 14px;
+  padding: 12px 12px;
+  border: 1px solid rgba(250, 204, 21, 0.20);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.88);
   outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.input:focus,
-.select:focus {
-  border-color: rgba(56, 189, 248, 0.85);
+.input:focus {
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.12);
 }
 
 .btnPrimary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  background: rgba(56, 189, 248, 0.12);
-  color: #e5e7eb;
-  padding: 10px 14px;
-  font-size: 13px;
+  width: 100%;
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, rgba(250, 204, 21, 0.18), rgba(251, 146, 60, 0.10));
+  color: rgba(250, 204, 21, 0.92);
+  font-weight: 900;
+  letter-spacing: 0.2px;
   cursor: pointer;
-  transition: 160ms ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .btnPrimary:hover {
-  border-color: rgba(56, 189, 248, 0.95);
-  background: rgba(56, 189, 248, 0.16);
+  transform: translateY(-2px);
+  border-color: rgba(250, 204, 21, 0.45);
+  box-shadow: var(--shadow-neon);
+}
+
+.btnPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.pillBtn {
+  border-radius: 999px;
+  border: 1px solid rgba(250, 204, 21, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pillBtn:hover {
   transform: translateY(-1px);
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.12);
 }
 
 .flashError {
   border-radius: 16px;
-  border: 1px solid rgba(244, 63, 94, 0.35);
-  background: rgba(244, 63, 94, 0.12);
-  padding: 12px;
-  font-size: 13px;
-  color: #fecdd3;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+  padding: 12px 12px;
+  color: rgba(254, 226, 226, 0.92);
+  font-size: 12px;
 }
 
 .flashOk {
   border-radius: 16px;
-  border: 1px solid rgba(16, 185, 129, 0.35);
+  border: 1px solid rgba(16, 185, 129, 0.30);
   background: rgba(16, 185, 129, 0.10);
-  padding: 12px;
-  font-size: 13px;
-  color: #bbf7d0;
+  padding: 12px 12px;
+  color: rgba(209, 250, 229, 0.92);
+  font-size: 12px;
+}
+
+/* Small utility for subtle separators */
+.hrSoft {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.16), transparent);
 }
