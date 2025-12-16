@@ -1,63 +1,148 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ensureUserBootstrap } from "../../../lib/api";
+import { Query } from "appwrite";
+import { db, DB_ID, COL, storage, BUCKET_ID, errMsg, requireSession } from "../../../lib/appwriteClient";
 
-const money = (n) => `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+function fileViewUrl(fileId) {
+  if (!fileId) return "";
+  try {
+    return storage.getFileView(BUCKET_ID, fileId).href;
+  } catch {
+    return "";
+  }
+}
 
 export default function WalletPage() {
-  const router = useRouter();
-  const [boot, setBoot] = useState(null);
+  const [user, setUser] = useState(null);
+  const [wallets, setWallets] = useState([]);
+  const [tx, setTx] = useState([]);
+  const [profileDoc, setProfileDoc] = useState(null);
+  const [err, setErr] = useState("");
+  const [showAvatar, setShowAvatar] = useState(false);
 
   useEffect(() => {
-    let c = false;
+    let dead = false;
     (async () => {
-      const b = await ensureUserBootstrap().catch(() => null);
-      if (!b) return router.replace("/signin");
-      if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
-      if (!c) setBoot(b);
+      try {
+        const u = await requireSession();
+        if (dead) return;
+        setUser(u);
+
+        const [w, t, p] = await Promise.all([
+          db.listDocuments(DB_ID, COL.WALLETS, [Query.equal("userId", u.$id), Query.limit(50)]),
+          db.listDocuments(DB_ID, COL.TX, [Query.equal("userId", u.$id), Query.orderDesc("transactionDate"), Query.limit(250)]),
+          db.getDocument(DB_ID, COL.USER_PROFILE, u.$id).catch(() => null),
+        ]);
+
+        if (!dead) {
+          setWallets(w.documents || []);
+          setTx(t.documents || []);
+          setProfileDoc(p);
+        }
+      } catch (e) {
+        if (!dead) setErr(errMsg(e, "Unable to load wallet."));
+      }
     })();
-    return () => (c = true);
-  }, [router]);
+    return () => (dead = true);
+  }, []);
 
-  const totals = useMemo(() => {
-    const map = { main: 0, trading: 0, affiliate: 0 };
-    (boot?.wallets || []).forEach((w) => {
-      map[w.currencyType] = Number(w.balance || 0);
-    });
-    return map;
-  }, [boot?.wallets]);
+  const total = useMemo(
+    () => (wallets || []).reduce((s, w) => s + Number(w.balance || 0), 0),
+    [wallets]
+  );
 
-  const combined = totals.main + totals.trading + totals.affiliate;
-
-  if (!boot) return <div className="cardSub">Loading…</div>;
+  const avatarUrl = fileViewUrl(profileDoc?.profileImageFileId);
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div className="card">
-        <div className="cardTitle">Wallet</div>
-        <div className="cardSub">Balances and positions overview.</div>
+    <div className="dt-shell" style={{ paddingTop: 18, paddingBottom: 30 }}>
+      <div className="dt-card dt-glow">
+        <div className="dt-h2">Wallets</div>
+        <div className="dt-subtle">Debit / credit style wallet cards + full transaction history.</div>
       </div>
 
-      <div className="card" style={{ padding: 16 }}>
-        <div className="cardSub">Total balance</div>
-        <div className="cardTitle" style={{ fontSize: 22 }}>{money(combined)}</div>
-        <div style={{ marginTop: 12, display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-          <div className="card">
-            <div className="cardSub">Main</div>
-            <div className="cardTitle">{money(totals.main)}</div>
+      {err ? <div className="dt-flash dt-flash-err" style={{ marginTop: 12 }}>{err}</div> : null}
+
+      <div className="dt-grid" style={{ marginTop: 14 }}>
+        <div className="dt-card dt-walletCard">
+          <div className="dt-walletTop">
+            <div>
+              <div className="dt-k">Total Balance</div>
+              <div className="dt-money">${total.toLocaleString()}</div>
+            </div>
+
+            <button
+              type="button"
+              className="dt-avatarBtn"
+              onClick={() => setShowAvatar(true)}
+              aria-label="Open profile picture"
+              title="Profile picture"
+            >
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Profile" className="dt-avatarImg" />
+              ) : (
+                <div className="dt-avatarFallback">{(user?.email || "U").slice(0, 1).toUpperCase()}</div>
+              )}
+            </button>
           </div>
-          <div className="card">
-            <div className="cardSub">Trading</div>
-            <div className="cardTitle">{money(totals.trading)}</div>
-          </div>
-          <div className="card">
-            <div className="cardSub">Affiliate</div>
-            <div className="cardTitle">{money(totals.affiliate)}</div>
+
+          <div className="dt-walletStrip">
+            {(wallets || []).slice(0, 3).map((w) => (
+              <div key={w.$id} className="dt-miniWallet">
+                <div className="dt-miniTitle">{String(w.currencyType || "Wallet").toUpperCase()}</div>
+                <div className="dt-miniAmt">${Number(w.balance || 0).toLocaleString()}</div>
+              </div>
+            ))}
           </div>
         </div>
+
+        <div className="dt-card">
+          <div className="dt-h3">Wallet Records</div>
+          <div className="dt-subtle">Balances are updated by Admin actions and transaction approvals.</div>
+        </div>
       </div>
+
+      <div className="dt-card" style={{ marginTop: 14 }}>
+        <div className="dt-h3">Transaction History</div>
+        {tx?.length ? (
+          <div className="dt-list" style={{ marginTop: 8 }}>
+            {tx.map((t) => (
+              <div key={t.$id} className="dt-row">
+                <div>
+                  <div className="dt-row-title">{t.transactionType}</div>
+                  <div className="dt-row-sub">
+                    {new Date(t.transactionDate).toLocaleString()} • {t.currencyType}
+                  </div>
+                </div>
+                <div className="dt-row-right">
+                  <div className="dt-row-amt">${Number(t.amount || 0).toLocaleString()}</div>
+                  <div className="dt-row-sub">{t.status || "pending"}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="dt-subtle">No transaction history yet.</div>
+        )}
+      </div>
+
+      {showAvatar ? (
+        <div className="dt-modalBack" onClick={() => setShowAvatar(false)}>
+          <div className="dt-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="dt-h3">Profile Picture</div>
+            <div style={{ marginTop: 10 }}>
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Profile preview" className="dt-avatarPreview" />
+              ) : (
+                <div className="dt-subtle">No profile picture uploaded yet.</div>
+              )}
+            </div>
+            <button className="dt-btn" style={{ marginTop: 14 }} onClick={() => setShowAvatar(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
