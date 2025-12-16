@@ -6,8 +6,10 @@ import { signIn } from "../../lib/api";
 
 export default function SigninPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -17,8 +19,10 @@ export default function SigninPage() {
     e.preventDefault();
     setErr("");
     setBusy(true);
+
     try {
-      await signIn({ email, password }); // ✅ object style (works for both)
+      // ✅ Correct signature for your current lib/api.js
+      await signIn(email, password);
       router.replace("/verify-code");
     } catch (e2) {
       setErr(e2?.message || "Unable to sign in.");
@@ -28,39 +32,63 @@ export default function SigninPage() {
   };
 
   return (
-    <div className="page-bg">
-      <div className="shell">
-        <div className="contentCard">
-          <div className="contentInner">
-            <div className="card">
-              <div className="cardTitle">Sign in</div>
-              <p className="cardSub">Enter your email and password.</p>
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-black bg-[url('https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=2000&q=80')] bg-cover bg-center px-4">
+      <div className="w-full max-w-md bg-black/80 border border-yellow-500 rounded-xl p-6 shadow-lg backdrop-blur">
+        <h1 className="text-3xl font-bold text-yellow-400 text-center">
+          Day Trader
+        </h1>
+        <p className="text-gray-300 text-center mt-2">
+          Welcome back. Sign in to continue.
+        </p>
 
-            {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
-
-            <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              <div>
-                <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-                <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-
-              <div>
-                <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
-                <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-              </div>
-
-              <button className="btnPrimary" disabled={!can || busy}>
-                {busy ? "Signing in…" : "Sign in"}
-              </button>
-
-              <div className="cardSub">
-                New here?{" "}
-                <a href="/signup" style={{ color: "rgba(56,189,248,.95)" }}>Create an account</a>
-              </div>
-            </form>
+        {err ? (
+          <div className="mt-4 bg-red-600/20 border border-red-500 text-red-200 p-3 rounded">
+            {err}
           </div>
-        </div>
+        ) : null}
+
+        <form onSubmit={submit} className="mt-6 space-y-4">
+          <div>
+            <label className="block text-sm text-gray-200 mb-1">Email</label>
+            <input
+              className="w-full p-3 rounded bg-black/50 text-white border border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-200 mb-1">
+              Password
+            </label>
+            <input
+              className="w-full p-3 rounded bg-black/50 text-white border border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+            />
+          </div>
+
+          <button
+            className="w-full p-3 rounded bg-yellow-500 text-black font-bold hover:bg-yellow-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={!can || busy}
+            type="submit"
+          >
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+
+          <p className="text-gray-300 text-center text-sm">
+            New here?{" "}
+            <a className="text-yellow-400 hover:underline" href="/signup">
+              Create an account
+            </a>
+          </p>
+        </form>
       </div>
     </div>
   );
