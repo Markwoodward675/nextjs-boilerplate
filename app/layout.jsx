@@ -29,17 +29,16 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className="bg-black text-white antialiased">
-        <header className="border-b border-yellow-500/30 bg-black/80 backdrop-blur">
+        {/* Header matches darker gold/orange theme */}
+        <header className="sticky top-0 z-50 border-b border-yellow-500/20 bg-black/75 backdrop-blur">
           <div className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl border border-yellow-500/60 bg-black/50 flex items-center justify-center overflow-hidden">
+            <div className="h-10 w-10 rounded-xl border border-yellow-500/40 bg-black/60 flex items-center justify-center overflow-hidden">
               <BrandLogo size={28} />
             </div>
 
-            <div>
-              <div className="font-semibold text-yellow-400 leading-tight">
-                Day Trader
-              </div>
-              <div className="text-[11px] text-slate-400">
+            <div className="leading-tight">
+              <div className="font-semibold text-yellow-300">Day Trader</div>
+              <div className="text-[11px] text-amber-200/45">
                 Markets • Wallets • Execution
               </div>
             </div>
