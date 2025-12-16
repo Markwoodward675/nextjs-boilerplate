@@ -2,114 +2,169 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signUp } from "../../lib/api";
+import { registerUser } from "@/lib/api";
 
-export default function SignupClient() {
+function cn(...a) {
+  return a.filter(Boolean).join(" ");
+}
+
+export default function RegisterPage() {
   const router = useRouter();
   const sp = useSearchParams();
-  const ref = sp.get("ref") || "";
 
+  const ref = sp.get("ref"); // optional affiliate ref
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
+  const [error, setError] = useState("");
 
-  const can = useMemo(
-    () => email && password && fullName && password.length >= 8,
-    [email, password, fullName]
-  );
+  const canSubmit = useMemo(() => {
+    const e = email.trim();
+    const p = password;
+    const n = fullName.trim();
+    return n.length >= 2 && e.includes("@") && p.length >= 8;
+  }, [fullName, email, password]);
 
-  const submit = async (e) => {
+  async function onSubmit(e) {
     e.preventDefault();
-    setErr("");
+    setError("");
     setBusy(true);
+
     try {
-      await signUp({ fullName, email, password, referralId: ref || "" });
+      await registerUser({
+        fullName: fullName.trim(),
+        email: email.trim(),
+        password,
+        referrerAffiliateId: ref ? Number(ref) : undefined, // harmless if unused
+      });
+
+      // Main gate is verify-code
       router.replace("/verify-code");
-    } catch (e2) {
-      setErr(e2?.message || "Unable to create account.");
+    } catch (err) {
+      const msg =
+        err?.message ||
+        (typeof err === "string" ? err : "Network request failed");
+      setError(msg);
     } finally {
       setBusy(false);
     }
-  };
+  }
 
   return (
-    <div className="page-bg">
-      <div className="shell">
-        <div className="contentCard">
-          <div className="contentInner">
-            <div className="card">
-              <div className="cardTitle">Create your Day Trader account</div>
-              <p className="cardSub">
-                Secure access to your dashboard and services.
-              </p>
+    <div className="min-h-screen bg-[#070A0F] text-white">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-10 md:grid-cols-2 md:py-16">
+        {/* Left: brand panel */}
+        <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent p-8 md:p-10">
+          <div className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
+              <span className="text-sm font-semibold tracking-wide">DT</span>
             </div>
+            <div>
+              <div className="text-xl font-semibold leading-tight">Day Trader</div>
+              <div className="text-sm text-white/60">Markets • Wallets • Execution</div>
+            </div>
+          </div>
 
-            {err ? (
-              <div className="flashError" style={{ marginTop: 12 }}>
-                {err}
+          <div className="mt-10 space-y-3">
+            <div className="text-3xl font-semibold leading-tight">
+              Create your account
+            </div>
+            <div className="text-white/65">
+              Secure access to your dashboard and services.
+            </div>
+          </div>
+
+          <div className="mt-10 rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div className="text-sm font-medium">Verification</div>
+            <div className="mt-1 text-sm text-white/65">
+              After signup you’ll verify with a 6-digit code to unlock access.
+            </div>
+          </div>
+
+          <div className="mt-8 text-xs text-white/45">
+            By continuing, you agree to our terms and policies.
+          </div>
+        </div>
+
+        {/* Right: form */}
+        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 md:p-10">
+          <form onSubmit={onSubmit} className="space-y-5">
+            {error ? (
+              <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                {error}
+                <div className="mt-2 text-xs text-red-100/70">
+                  If you see a CORS error, add this domain in Appwrite Platforms.
+                </div>
               </div>
             ) : null}
 
-            <form
-              onSubmit={submit}
-              style={{ marginTop: 12, display: "grid", gap: 10 }}
+            <div>
+              <label className="text-sm text-white/70">Full name</label>
+              <input
+                className={cn(
+                  "mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none",
+                  "focus:border-white/20 focus:ring-2 focus:ring-white/10"
+                )}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Your name"
+                autoComplete="name"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm text-white/70">Email</label>
+              <input
+                className={cn(
+                  "mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none",
+                  "focus:border-white/20 focus:ring-2 focus:ring-white/10"
+                )}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@domain.com"
+                autoComplete="email"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm text-white/70">Password</label>
+              <input
+                type="password"
+                className={cn(
+                  "mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none",
+                  "focus:border-white/20 focus:ring-2 focus:ring-white/10"
+                )}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimum 8 characters"
+                autoComplete="new-password"
+              />
+              <div className="mt-2 text-xs text-white/45">
+                Minimum 8 characters.
+              </div>
+            </div>
+
+            <button
+              disabled={!canSubmit || busy}
+              className={cn(
+                "w-full rounded-2xl px-4 py-3 text-sm font-semibold",
+                "bg-white text-black hover:bg-white/90",
+                "disabled:cursor-not-allowed disabled:opacity-50"
+              )}
+              type="submit"
             >
-              <div>
-                <div className="cardSub" style={{ marginBottom: 6 }}>
-                  Full name
-                </div>
-                <input
-                  className="input"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                />
-              </div>
+              {busy ? "Creating account..." : "Create account"}
+            </button>
 
-              <div>
-                <div className="cardSub" style={{ marginBottom: 6 }}>
-                  Email
-                </div>
-                <input
-                  className="input"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <div className="cardSub" style={{ marginBottom: 6 }}>
-                  Password
-                </div>
-                <input
-                  className="input"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <div className="cardSub" style={{ marginTop: 6 }}>
-                  Minimum 8 characters.
-                </div>
-              </div>
-
-              <button className="btnPrimary" disabled={!can || busy}>
-                {busy ? "Creating…" : "Create account"}
-              </button>
-
-              <div className="cardSub">
-                Already have an account?{" "}
-                <a href="/signin" style={{ color: "rgba(56,189,248,.95)" }}>
-                  Sign in
-                </a>
-              </div>
-            </form>
-
-            {/* Keep referral visible if you want (optional) */}
-            {/* {ref ? <div className="cardSub" style={{marginTop:10}}>Referral: {ref}</div> : null} */}
-          </div>
+            <div className="pt-2 text-center text-sm text-white/60">
+              Already have an account?{" "}
+              <a className="text-white hover:underline" href="/auth/login">
+                Sign in
+              </a>
+            </div>
+          </form>
         </div>
       </div>
     </div>
