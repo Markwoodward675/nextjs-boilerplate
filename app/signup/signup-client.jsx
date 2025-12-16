@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signUp } from "../../lib/api";
+import { registerUser } from "../../lib/api";
 
 function cn(...a) {
   return a.filter(Boolean).join(" ");
