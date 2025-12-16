@@ -3,6 +3,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { requestPasswordRecovery } from "../../lib/api";
 
 const BG =
   "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=2200&q=80";
@@ -24,15 +25,11 @@ export default function ForgotPasswordPage() {
     setBusy(true);
 
     try {
-      // TODO: wire to Appwrite recovery or your API route later.
-      // For now we keep UI + flow build-safe.
-      await new Promise((r) => setTimeout(r, 650));
-      setMsg("If this email exists, we’ve sent a password reset link.");
-    } catch (e2) {
-      setErr(e2?.message || "Unable to request password reset.");
-    } finally {
-      setBusy(false);
-    }
+  await requestPasswordRecovery(email);
+  setMsg("If this email exists, we’ve sent a password reset link.");
+} catch (e2) {
+  setErr(e2?.message || "Unable to request password reset.");
+}
   };
 
   return (
