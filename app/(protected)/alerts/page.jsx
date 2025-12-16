@@ -57,10 +57,7 @@ export default function AlertsPage() {
               setErr(e?.message || "Unable to generate code.");
             }
           }}
-        >
-          Generate access code
-        </button>
-      </div>
+       
 
       <div className="card">
         {alerts.length ? (
