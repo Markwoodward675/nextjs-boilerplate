@@ -1,100 +1,127 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ensureUserBootstrap, ensureAffiliateAccount, getAffiliateSummary } from "../../../lib/api";
+import { Query } from "appwrite";
+import { db, DB_ID, COL, errMsg, requireSession } from "../../../lib/appwriteClient";
 
 export default function AffiliatePage() {
-  const router = useRouter();
-  const [boot, setBoot] = useState(null);
-  const [summary, setSummary] = useState(null);
+  const [user, setUser] = useState(null);
+  const [acc, setAcc] = useState(null);
+  const [refs, setRefs] = useState([]);
   const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
 
   useEffect(() => {
-    let c = false;
+    let dead = false;
     (async () => {
-      const b = await ensureUserBootstrap().catch(() => null);
-      if (!b) return router.replace("/signin");
-      if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
-      await ensureAffiliateAccount(b.user.$id);
-      const s = await getAffiliateSummary(b.user.$id);
-      if (!c) {
-        setBoot(b);
-        setSummary(s);
+      try {
+        const u = await requireSession();
+        if (dead) return;
+        setUser(u);
+
+        // affiliate_account uses userId + affiliateId (int)
+        const aRes = await db.listDocuments(DB_ID, COL.AFF_ACCOUNT, [
+          Query.equal("userId", u.$id),
+          Query.limit(1),
+        ]);
+
+        const account = aRes.documents?.[0] || null;
+        setAcc(account);
+
+        if (account?.affiliateId != null) {
+          const r = await db.listDocuments(DB_ID, COL.AFF_REFERRALS, [
+            Query.equal("referrerAffiliateId", Number(account.affiliateId)),
+            Query.orderDesc("referralDate"),
+            Query.limit(200),
+          ]);
+          setRefs(r.documents || []);
+        }
+      } catch (e) {
+        if (!dead) setErr(errMsg(e, "Unable to load affiliate data."));
       }
     })();
-    return () => (c = true);
-  }, [router]);
+    return () => (dead = true);
+  }, []);
 
-  const refLink = useMemo(() => {
-    if (!summary?.affiliateId) return "";
-    const base = process.env.NEXT_PUBLIC_APP_URL || "";
-    return `${base}/signup?ref=${summary.affiliateId}`;
-  }, [summary?.affiliateId]);
+  const referralLink = useMemo(() => {
+    if (!acc?.affiliateId) return "";
+    return `${window.location.origin}/signup?ref=${encodeURIComponent(acc.affiliateId)}`;
+  }, [acc?.affiliateId]);
 
-  if (!boot || !summary) return <div className="cardSub">Loading…</div>;
+  const copy = async () => {
+    setMsg("");
+    setErr("");
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      setMsg("Referral link copied.");
+    } catch {
+      setErr("Copy failed. Select and copy manually.");
+    }
+  };
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div className="card">
-        <div className="cardTitle">Affiliate</div>
-        <div className="cardSub">Referral tracking and commission records.</div>
+    <div className="dt-shell" style={{ paddingTop: 18, paddingBottom: 30 }}>
+      <div className="dt-card dt-glow">
+        <div className="dt-h2">Affiliate</div>
+        <div className="dt-subtle">Copy your referral link. Referred signups will appear here.</div>
       </div>
 
-      {msg ? <div className="flashOk">{msg}</div> : null}
+      {err ? <div className="dt-flash dt-flash-err" style={{ marginTop: 12 }}>{err}</div> : null}
+      {msg ? <div className="dt-flash dt-flash-ok" style={{ marginTop: 12 }}>{msg}</div> : null}
 
-      <div className="card">
-        <div className="cardTitle" style={{ fontSize: 13 }}>Referral ID</div>
-        <div className="cardSub" style={{ marginTop: 6 }}>{summary.affiliateId}</div>
-
-        <div className="cardTitle" style={{ fontSize: 13, marginTop: 12 }}>Referral link</div>
-        <div className="cardSub" style={{ marginTop: 6, wordBreak: "break-all" }}>{refLink}</div>
-
-        <button
-          className="btnPrimary"
-          style={{ marginTop: 10 }}
-          onClick={async () => {
-            await navigator.clipboard.writeText(refLink);
-            setMsg("Referral link copied.");
-            setTimeout(() => setMsg(""), 2500);
-          }}
-        >
-          Copy link
-        </button>
-      </div>
-
-      <div className="card">
-        <div className="cardTitle">Commissions</div>
-        {summary.commissions?.length ? (
-          <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-            {summary.commissions.map((c) => (
-              <div key={c.$id} className="card" style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                <div>
-                  <div className="cardTitle" style={{ fontSize: 13 }}>${Number(c.commissionAmount || 0).toFixed(2)}</div>
-                  <div className="cardSub">{c.paymentStatus}</div>
-                </div>
-                <div className="cardSub">{new Date(c.commissionDate || c.$createdAt).toLocaleString()}</div>
-              </div>
-            ))}
+      <div className="dt-card" style={{ marginTop: 14 }}>
+        {!acc ? (
+          <div className="dt-subtle">
+            No affiliate account found. Create it in Admin Panel for this user (affiliate_account).
           </div>
         ) : (
-          <div className="cardSub" style={{ marginTop: 8 }}>No commissions recorded.</div>
+          <>
+            <div className="dt-grid">
+              <div className="dt-card dt-card-inner">
+                <div className="dt-k">Affiliate ID</div>
+                <div className="dt-money">{acc.affiliateId}</div>
+              </div>
+              <div className="dt-card dt-card-inner">
+                <div className="dt-k">Total Earned</div>
+                <div className="dt-money">${Number(acc.totalEarned || 0).toLocaleString()}</div>
+              </div>
+              <div className="dt-card dt-card-inner">
+                <div className="dt-k">Status</div>
+                <div className="dt-money">{String(acc.status || "active")}</div>
+              </div>
+            </div>
+
+            <div className="dt-form" style={{ marginTop: 12 }}>
+              <label className="dt-label">Your referral link</label>
+              <input className="dt-input" value={referralLink} readOnly />
+              <button className="dt-btn dt-btn-primary" onClick={copy} disabled={!referralLink}>
+                Copy link
+              </button>
+            </div>
+          </>
         )}
       </div>
 
-      <div className="card">
-        <div className="cardTitle">Referrals</div>
-        {summary.referrals?.length ? (
-          <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-            {summary.referrals.map((r) => (
-              <div key={r.$id} className="card">
-                <div className="cardTitle" style={{ fontSize: 13 }}>{r.status}</div>
-                <div className="cardSub">User: {String(r.referredUserId)}</div>
+      <div className="dt-card" style={{ marginTop: 14 }}>
+        <div className="dt-h3">Referred users</div>
+        {refs?.length ? (
+          <div className="dt-list" style={{ marginTop: 8 }}>
+            {refs.map((r) => (
+              <div key={r.$id} className="dt-row">
+                <div>
+                  <div className="dt-row-title">Referred User ID: {r.referredUserId || "—"}</div>
+                  <div className="dt-row-sub">
+                    {r.referralDate ? new Date(r.referralDate).toLocaleString() : "—"} • {r.status || "pending"}
+                  </div>
+                </div>
+                <div className="dt-row-right">
+                  <div className="dt-row-amt">${Number(r.commissionEarned || 0).toLocaleString()}</div>
+                </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="cardSub" style={{ marginTop: 8 }}>No referrals recorded.</div>
+          <div className="dt-subtle" style={{ marginTop: 8 }}>No referrals yet.</div>
         )}
       </div>
     </div>
