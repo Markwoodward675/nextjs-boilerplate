@@ -1,175 +1,187 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  ensureUserBootstrap,
-  updateUserProfile,
-  uploadProfilePicture,
-  uploadKycDocument,
-} from "../../../lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { db, DB_ID, COL, errMsg, requireSession } from "../../../lib/appwriteClient";
 
 export default function SettingsPage() {
-  const router = useRouter();
-  const [boot, setBoot] = useState(null);
-  const [err, setErr] = useState("");
-  const [ok, setOk] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const [displayName, setDisplayName] = useState("");
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null); // user_profile doc
+  const [fullName, setFullName] = useState("");
+  const [country, setCountry] = useState("");
   const [address, setAddress] = useState("");
 
+  const [profilePic, setProfilePic] = useState(null);
+  const [kycFront, setKycFront] = useState(null);
+  const [kycBack, setKycBack] = useState(null);
+  const [kycSelfie, setKycSelfie] = useState(null);
+
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
   useEffect(() => {
-    let cancel = false;
+    let dead = false;
     (async () => {
       try {
-        const b = await ensureUserBootstrap();
-        if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
-        if (!cancel) {
-          setBoot(b);
-          setDisplayName(b.profile.displayName || b.profile.fullName || "");
-          setAddress(b.profile.address || "");
+        const u = await requireSession();
+        if (dead) return;
+        setUser(u);
+
+        const p = await db.getDocument(DB_ID, COL.USER_PROFILE, u.$id).catch(() => null);
+        if (!dead) {
+          setProfile(p);
+          setFullName(p?.fullName || u.name || "");
+          setCountry(p?.country || "");
+          setAddress(p?.address || "");
         }
-      } catch {
-        router.replace("/signin");
+      } catch (e) {
+        if (!dead) setErr(errMsg(e, "Unable to load settings."));
       }
     })();
-    return () => (cancel = true);
-  }, [router]);
+    return () => (dead = true);
+  }, []);
 
-  const save = async () => {
-    if (!boot) return;
+  const canSave = useMemo(() => !!fullName.trim(), [fullName]);
+
+  const saveProfile = async () => {
+    if (!user?.$id) return;
     setBusy(true);
     setErr("");
-    setOk("");
+    setMsg("");
+
     try {
-      await updateUserProfile(boot.user.$id, {
-        displayName,
-        address,
+      const res = await fetch("/api/settings/profile-save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.$id,
+          fullName: fullName.trim(),
+          country: country.trim(),
+          address: address.trim(),
+        }),
       });
-      setOk("Settings saved.");
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) throw new Error(j?.error || "Unable to save profile.");
+      setMsg("Profile saved.");
     } catch (e) {
-      setErr(e?.message || "Unable to save settings.");
+      setErr(errMsg(e, "Unable to save profile."));
     } finally {
       setBusy(false);
     }
   };
 
-  const onProfilePic = async (file) => {
-    if (!boot || !file) return;
+  const uploadAvatar = async () => {
+    if (!user?.$id || !profilePic) return;
     setBusy(true);
     setErr("");
-    setOk("");
+    setMsg("");
     try {
-      await uploadProfilePicture(boot.user.$id, file);
-      const b2 = await ensureUserBootstrap();
-      setBoot(b2);
-      setOk("Profile picture updated.");
+      const fd = new FormData();
+      fd.append("userId", user.$id);
+      fd.append("file", profilePic);
+
+      const res = await fetch("/api/settings/upload-profile-picture", { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) throw new Error(j?.error || "Upload failed.");
+      setMsg("Profile picture uploaded.");
     } catch (e) {
-      setErr(e?.message || "Upload failed.");
+      setErr(errMsg(e, "Upload failed."));
     } finally {
       setBusy(false);
     }
   };
 
-  const onKyc = async (file) => {
-    if (!boot || !file) return;
+  const submitKyc = async () => {
+    if (!user?.$id || !kycFront || !kycBack || !kycSelfie) {
+      setErr("Upload front, back, and selfie images.");
+      return;
+    }
     setBusy(true);
     setErr("");
-    setOk("");
+    setMsg("");
     try {
-      await uploadKycDocument(boot.user.$id, file);
-      const b2 = await ensureUserBootstrap();
-      setBoot(b2);
-      setOk("KYC submitted. Awaiting review.");
+      const fd = new FormData();
+      fd.append("userId", user.$id);
+      fd.append("front", kycFront);
+      fd.append("back", kycBack);
+      fd.append("selfie", kycSelfie);
+
+      const res = await fetch("/api/settings/kyc-submit", { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) throw new Error(j?.error || "KYC submit failed.");
+      setMsg("KYC submitted. Awaiting review.");
     } catch (e) {
-      setErr(e?.message || "Upload failed.");
+      setErr(errMsg(e, "KYC submit failed."));
     } finally {
       setBusy(false);
     }
   };
-
-  if (!boot) return <div className="cardSub">Loading…</div>;
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div className="card">
-        <div className="cardTitle">Settings</div>
-        <p className="cardSub">Profile, verification, and documents.</p>
+    <div className="dt-shell" style={{ paddingTop: 18, paddingBottom: 30 }}>
+      <div className="dt-card dt-glow">
+        <div className="dt-h2">Settings</div>
+        <div className="dt-subtle">Update profile, upload a profile picture, and submit KYC.</div>
       </div>
 
-      {err ? <div className="flashError">{err}</div> : null}
-      {ok ? <div className="flashOk">{ok}</div> : null}
+      {err ? <div className="dt-flash dt-flash-err" style={{ marginTop: 12 }}>{err}</div> : null}
+      {msg ? <div className="dt-flash dt-flash-ok" style={{ marginTop: 12 }}>{msg}</div> : null}
 
-      <div className="card">
-        <div className="cardTitle">Profile</div>
+      <div className="dt-grid" style={{ marginTop: 14 }}>
+        <div className="dt-card">
+          <div className="dt-h3">Profile</div>
 
-        <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-          <div>
-            <div className="cardSub" style={{ marginBottom: 6 }}>Display name</div>
-            <input className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+          <div className="dt-form" style={{ marginTop: 10 }}>
+            <label className="dt-label">Full name</label>
+            <input className="dt-input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+
+            <label className="dt-label">Country</label>
+            <input className="dt-input" value={country} onChange={(e) => setCountry(e.target.value)} />
+
+            <label className="dt-label">Address</label>
+            <input className="dt-input" value={address} onChange={(e) => setAddress(e.target.value)} />
+
+            <button className="dt-btn dt-btn-primary" disabled={!canSave || busy} onClick={saveProfile}>
+              {busy ? "Saving…" : "Save profile"}
+            </button>
           </div>
+        </div>
 
-          <div>
-            <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-            <input className="input" value={boot.profile.email || ""} disabled />
+        <div className="dt-card">
+          <div className="dt-h3">Profile picture</div>
+          <div className="dt-subtle">Upload from your device (mobile/desktop).</div>
+
+          <div className="dt-form" style={{ marginTop: 10 }}>
+            <input className="dt-file" type="file" accept="image/*" onChange={(e) => setProfilePic(e.target.files?.[0] || null)} />
+            <button className="dt-btn" disabled={!profilePic || busy} onClick={uploadAvatar}>
+              {busy ? "Uploading…" : "Upload picture"}
+            </button>
           </div>
-
-          <div>
-            <div className="cardSub" style={{ marginBottom: 6 }}>Country (locked)</div>
-            <input className="input" value={boot.profile.country || ""} disabled />
-          </div>
-
-          <div>
-            <div className="cardSub" style={{ marginBottom: 6 }}>Address</div>
-            <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} />
-          </div>
-
-          <button className="btnPrimary" onClick={save} disabled={busy}>
-            {busy ? "Saving…" : "Save settings"}
-          </button>
         </div>
       </div>
 
-      <div className="card">
-        <div className="cardTitle">Profile picture</div>
-        <p className="cardSub">Upload from your device.</p>
-        <input
-          className="input"
-          type="file"
-          accept="image/*"
-          onChange={(e) => onProfilePic(e.target.files?.[0])}
-          disabled={busy}
-          style={{ marginTop: 10 }}
-        />
-        {boot.profile.profileImageUrl ? (
-          <div style={{ marginTop: 10 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={boot.profile.profileImageUrl} alt="Profile" style={{ width: 120, borderRadius: 14, border: "1px solid rgba(51,65,85,.75)" }} />
+      <div className="dt-card" style={{ marginTop: 14 }}>
+        <div className="dt-h3">KYC verification</div>
+        <div className="dt-subtle">Upload ID front, ID back, and a selfie.</div>
+
+        <div className="dt-grid" style={{ marginTop: 10 }}>
+          <div className="dt-card dt-card-inner">
+            <div className="dt-k">Front</div>
+            <input className="dt-file" type="file" accept="image/*" onChange={(e) => setKycFront(e.target.files?.[0] || null)} />
           </div>
-        ) : null}
-      </div>
-
-      <div className="card">
-        <div className="cardTitle">KYC documents</div>
-        <p className="cardSub">
-          Status: <b>{boot.profile.kycStatus || "not_submitted"}</b>
-        </p>
-
-        <input
-          className="input"
-          type="file"
-          accept="image/*,application/pdf"
-          onChange={(e) => onKyc(e.target.files?.[0])}
-          disabled={busy}
-          style={{ marginTop: 10 }}
-        />
-
-        {boot.profile.kycDocUrl ? (
-          <div className="cardSub" style={{ marginTop: 10 }}>
-            Document uploaded.
+          <div className="dt-card dt-card-inner">
+            <div className="dt-k">Back</div>
+            <input className="dt-file" type="file" accept="image/*" onChange={(e) => setKycBack(e.target.files?.[0] || null)} />
           </div>
-        ) : null}
+          <div className="dt-card dt-card-inner">
+            <div className="dt-k">Selfie</div>
+            <input className="dt-file" type="file" accept="image/*" onChange={(e) => setKycSelfie(e.target.files?.[0] || null)} />
+          </div>
+        </div>
+
+        <button className="dt-btn dt-btn-primary" style={{ marginTop: 10 }} disabled={busy} onClick={submitKyc}>
+          {busy ? "Submitting…" : "Submit KYC"}
+        </button>
       </div>
     </div>
   );
