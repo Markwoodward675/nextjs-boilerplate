@@ -1,72 +1,92 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ensureUserBootstrap, createTransaction } from "../../../../lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { Query } from "appwrite";
+import { db, DB_ID, COL, errMsg, requireSession } from "../../../../lib/appwriteClient";
 
-export default function GiftcardSellPage() {
-  const router = useRouter();
-  const [boot, setBoot] = useState(null);
+const VENDORS = ["Amazon","Razer Gold","Steam","iTunes","Google Play","PlayStation","Target","Xbox","Pokémon"];
+
+export default function GiftcardsSellPage() {
+  const [user, setUser] = useState(null);
   const [vendor, setVendor] = useState("Amazon");
-  const [value, setValue] = useState("");
+  const [amount, setAmount] = useState("");
+  const [pin, setPin] = useState("");
+  const [cardPhoto, setCardPhoto] = useState(null);
+
+  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    let c = false;
+    let dead = false;
     (async () => {
-      const b = await ensureUserBootstrap().catch(() => null);
-      if (!b) return router.replace("/signin");
-      if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
-      if (!c) setBoot(b);
+      try {
+        const u = await requireSession();
+        if (!dead) setUser(u);
+      } catch (e) {
+        if (!dead) setErr(errMsg(e, "Unable to load giftcards sell."));
+      }
     })();
-    return () => (c = true);
-  }, [router]);
+    return () => (dead = true);
+  }, []);
+
+  const can = useMemo(() => Number(amount || 0) > 0 && pin.trim() && cardPhoto, [amount, pin, cardPhoto]);
 
   const submit = async () => {
-    if (!boot) return;
-    setErr("");
-    setMsg("");
+    if (!user?.$id) return;
+    setBusy(true);
+    setErr(""); setMsg("");
     try {
-      const v = Number(value);
-      if (!v || v <= 0) throw new Error("Enter a valid card value.");
+      const fd = new FormData();
+      fd.append("userId", user.$id);
+      fd.append("side", "sell");
+      fd.append("vendor", vendor);
+      fd.append("amount", String(Number(amount)));
+      fd.append("pin", pin.trim());
+      fd.append("photo", cardPhoto);
 
-      await createTransaction(boot.user.$id, {
-        type: "giftcard_sell",
-        amount: v,
-        status: "pending",
-        meta: { vendor },
-      });
-
-      setMsg("Request submitted.");
-      setValue("");
+      const res = await fetch("/api/giftcard-trade-submit", { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) throw new Error(j?.error || "Request failed.");
+      setMsg("Giftcard sell request submitted.");
+      setAmount(""); setPin(""); setCardPhoto(null);
     } catch (e) {
-      setErr(e?.message || "Unable to submit.");
+      setErr(errMsg(e, "Request failed."));
+    } finally {
+      setBusy(false);
     }
   };
 
-  if (!boot) return <div className="cardSub">Loading…</div>;
-
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div className="card">
-        <div className="cardTitle">Giftcards — Sell</div>
-        <div className="cardSub">Submit your card for review.</div>
+    <div className="dt-shell" style={{ paddingTop: 18, paddingBottom: 30 }}>
+      <div className="dt-card dt-glow">
+        <div className="dt-h2">Giftcards · Sell</div>
+        <div className="dt-subtle">Select vendor, upload card photo, and provide PIN/CODE.</div>
       </div>
 
-      {err ? <div className="flashError">{err}</div> : null}
-      {msg ? <div className="flashOk">{msg}</div> : null}
+      {err ? <div className="dt-flash dt-flash-err" style={{ marginTop: 12 }}>{err}</div> : null}
+      {msg ? <div className="dt-flash dt-flash-ok" style={{ marginTop: 12 }}>{msg}</div> : null}
 
-      <div className="card" style={{ display: "grid", gap: 10 }}>
-        <div>
-          <div className="cardSub" style={{ marginBottom: 6 }}>Vendor</div>
-          <input className="input" value={vendor} onChange={(e) => setVendor(e.target.value)} />
+      <div className="dt-card" style={{ marginTop: 14 }}>
+        <div className="dt-form">
+          <label className="dt-label">Vendor</label>
+          <select className="dt-input" value={vendor} onChange={(e) => setVendor(e.target.value)}>
+            {VENDORS.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+
+          <label className="dt-label">Amount (USD)</label>
+          <input className="dt-input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+
+          <label className="dt-label">PIN / CODE</label>
+          <input className="dt-input" value={pin} onChange={(e) => setPin(e.target.value)} />
+
+          <label className="dt-label">Upload card photo</label>
+          <input className="dt-file" type="file" accept="image/*" onChange={(e) => setCardPhoto(e.target.files?.[0] || null)} />
+
+          <button className="dt-btn dt-btn-primary" disabled={!can || busy} onClick={submit}>
+            {busy ? "Submitting…" : "Submit sell request"}
+          </button>
         </div>
-        <div>
-          <div className="cardSub" style={{ marginBottom: 6 }}>Card value (USD)</div>
-          <input className="input" value={value} onChange={(e) => setValue(e.target.value)} />
-        </div>
-        <button className="btnPrimary" onClick={submit}>Submit</button>
       </div>
     </div>
   );
