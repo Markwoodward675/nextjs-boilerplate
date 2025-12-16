@@ -1,5 +1,6 @@
 // app/layout.jsx
 import "./globals.css";
+import FakeNotifications from "../components/FakeNotifications";
 
 export const metadata = {
   title: { default: "Day Trader", template: "%s · Day Trader" },
@@ -27,8 +28,11 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className="dt-body">
-        <RootChrome>{children}</RootChrome>
-      </body>
+  <header className="dt-header">...</header>
+  <main className="dt-main">{children}</main>
+
+  <FakeNotifications enabled sound />
+</body>
     </html>
   );
 }
