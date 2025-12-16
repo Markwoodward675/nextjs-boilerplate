@@ -1,83 +1,148 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ensureUserBootstrap, createTransaction } from "../../../lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { errMsg, requireSession } from "../../../lib/appwriteClient";
+
+const TICKERS = ["BTC", "ETH", "SOL", "XRP", "BNB", "USDT", "ADA", "DOGE"];
+const CURRENCIES = ["USD", "EUR", "JPY", "GBP"];
+
+function bybitUrl(symbol) {
+  // Bybit uses formats like BTCUSDT
+  const s = String(symbol || "BTC").toUpperCase();
+  const pair = s.endsWith("USDT") ? s : `${s}USDT`;
+  return `https://www.bybit.com/en/trade/spot/${pair}`;
+}
 
 export default function TradePage() {
-  const router = useRouter();
-  const [boot, setBoot] = useState(null);
-  const [symbol, setSymbol] = useState("BTCUSDT");
-  const [side, setSide] = useState("buy");
-  const [qty, setQty] = useState("");
+  const [user, setUser] = useState(null);
+
+  const [ticker, setTicker] = useState("BTC");
+  const [amount, setAmount] = useState("");
+  const [currencyType, setCurrencyType] = useState("USD");
+  const [platform, setPlatform] = useState("bybit");
+
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
-  const [ok, setOk] = useState("");
 
   useEffect(() => {
-    let c = false;
+    let dead = false;
     (async () => {
-      const b = await ensureUserBootstrap().catch(() => null);
-      if (!b) return router.replace("/signin");
-      if (!b.profile.verificationCodeVerified) return router.replace("/verify-code");
-      if (!c) setBoot(b);
+      try {
+        const u = await requireSession();
+        if (!dead) setUser(u);
+      } catch (e) {
+        if (!dead) setErr(errMsg(e, "We couldn’t confirm your session. Please sign in again."));
+      }
     })();
-    return () => (c = true);
-  }, [router]);
+    return () => (dead = true);
+  }, []);
 
-  const place = async () => {
-    if (!boot) return;
+  const amt = Number(amount || 0);
+
+  const can = useMemo(() => {
+    return !!user?.$id && !!ticker && amt > 0 && CURRENCIES.includes(currencyType);
+  }, [user?.$id, ticker, amt, currencyType]);
+
+  const submit = async () => {
+    if (!can || busy) return;
+
+    setBusy(true);
     setErr("");
-    setOk("");
-    try {
-      const q = Number(qty);
-      if (!q || q <= 0) throw new Error("Enter a valid quantity.");
+    setMsg("");
 
-      await createTransaction(boot.user.$id, {
-        type: "trade",
-        amount: 0,
-        status: "pending",
-        meta: { symbol, side, qty: q },
+    const redirectTo =
+      platform === "bybit" ? bybitUrl(ticker) : bybitUrl(ticker); // future platforms can be added
+
+    try {
+      // Record intent in your system first (server route writes to Appwrite)
+      const res = await fetch("/api/paper-order-submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.$id,
+          amount: amt,
+          currencyType, // must be USD/EUR/JPY/GBP
+          transactionType: "trade",
+          meta: {
+            ticker,
+            platform,
+            redirectTo,
+            note: "User initiated trade redirect",
+          },
+        }),
       });
 
-      setOk("Order submitted.");
-      setQty("");
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) {
+        // Don’t block user from trading if the record write fails
+        setErr(j?.error || "Trade record could not be saved, but you can proceed.");
+      } else {
+        setMsg("Redirecting to trading platform…");
+      }
     } catch (e) {
-      setErr(e?.message || "Unable to place order.");
+      setErr(errMsg(e, "Trade record could not be saved, but you can proceed."));
+    } finally {
+      setBusy(false);
+      window.location.href = redirectTo;
     }
   };
 
-  if (!boot) return <div className="cardSub">Loading…</div>;
-
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div className="card">
-        <div className="cardTitle">Trade</div>
-        <div className="cardSub">Order entry and execution tracking.</div>
+    <div className="dt-shell" style={{ paddingTop: 18, paddingBottom: 30 }}>
+      <div className="dt-card dt-glow">
+        <div className="dt-h2">Trade</div>
+        <div className="dt-subtle">
+          Select an asset and amount. You’ll be redirected to a trusted exchange to execute the trade.
+        </div>
       </div>
 
-      {err ? <div className="flashError">{err}</div> : null}
-      {ok ? <div className="flashOk">{ok}</div> : null}
+      {err ? <div className="dt-flash dt-flash-err" style={{ marginTop: 12 }}>{err}</div> : null}
+      {msg ? <div className="dt-flash dt-flash-ok" style={{ marginTop: 12 }}>{msg}</div> : null}
 
-      <div className="card" style={{ display: "grid", gap: 10 }}>
-        <div>
-          <div className="cardSub" style={{ marginBottom: 6 }}>Symbol</div>
-          <input className="input" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
-        </div>
+      <div className="dt-card" style={{ marginTop: 14 }}>
+        <div className="dt-h3">Trade setup</div>
 
-        <div>
-          <div className="cardSub" style={{ marginBottom: 6 }}>Side</div>
-          <select className="select" value={side} onChange={(e) => setSide(e.target.value)}>
-            <option value="buy">Buy</option>
-            <option value="sell">Sell</option>
+        <div className="dt-form" style={{ marginTop: 10 }}>
+          <label className="dt-label">Platform</label>
+          <select className="dt-input" value={platform} onChange={(e) => setPlatform(e.target.value)}>
+            <option value="bybit">Bybit</option>
           </select>
-        </div>
 
-        <div>
-          <div className="cardSub" style={{ marginBottom: 6 }}>Quantity</div>
-          <input className="input" value={qty} onChange={(e) => setQty(e.target.value)} />
-        </div>
+          <label className="dt-label">Asset</label>
+          <select className="dt-input" value={ticker} onChange={(e) => setTicker(e.target.value)}>
+            {TICKERS.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
 
-        <button className="btnPrimary" onClick={place}>Place order</button>
+          <label className="dt-label">Amount</label>
+          <input
+            className="dt-input"
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="e.g. 250"
+          />
+
+          <label className="dt-label">Account currency</label>
+          <select className="dt-input" value={currencyType} onChange={(e) => setCurrencyType(e.target.value)}>
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+
+          <div className="dt-card dt-card-inner">
+            <div className="dt-k">Redirect destination</div>
+            <div className="dt-subtle" style={{ wordBreak: "break-word" }}>
+              {bybitUrl(ticker)}
+            </div>
+          </div>
+
+          <button className="dt-btn dt-btn-primary" disabled={!can || busy} onClick={submit}>
+            {busy ? "Preparing…" : "Proceed to trade →"}
+          </button>
+        </div>
       </div>
     </div>
   );
