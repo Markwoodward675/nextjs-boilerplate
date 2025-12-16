@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -15,7 +13,7 @@ import {
 export default function VerifyCodePage() {
   const router = useRouter();
 
-  const [boot, setBoot] = useState(null);
+  const [boot, setBoot] = useState(null); // { user, profile }
   const [loading, setLoading] = useState(true);
 
   const [code, setCode] = useState("");
@@ -31,8 +29,10 @@ export default function VerifyCodePage() {
       setLoading(true);
       setErr("");
       setMsg("");
+
       try {
         const b = await ensureUserBootstrap();
+
         if (cancelled) return;
 
         if (!b?.user) {
@@ -40,6 +40,7 @@ export default function VerifyCodePage() {
           return;
         }
 
+        // already verified
         if (b?.profile?.verificationCodeVerified) {
           router.replace("/dashboard");
           return;
@@ -47,8 +48,10 @@ export default function VerifyCodePage() {
 
         setBoot(b);
       } catch (e) {
-        setErr(getErrorMessage(e, "Session check failed. Please sign in again."));
-        setBoot(null);
+        if (!cancelled) {
+          setBoot(null);
+          setErr(getErrorMessage(e, "We couldn’t confirm your session. Please sign in again."));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -66,7 +69,7 @@ export default function VerifyCodePage() {
     setLoading(true);
     try {
       await createOrRefreshVerifyCode(boot.user.$id);
-      setMsg("Verification code sent to your email.");
+      setMsg("Verification code sent. Check your email inbox (and spam/junk folder).");
     } catch (e) {
       setErr(getErrorMessage(e, "Unable to send verification code email."));
     } finally {
@@ -89,101 +92,120 @@ export default function VerifyCodePage() {
     }
   };
 
+  // Session checking state
   if (loading && !boot) {
-    return <div className="cardSub">Checking your session…</div>;
-  }
-
-  if (!boot?.user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black px-4">
-        <div className="w-full max-w-md bg-black/80 border border-yellow-500 rounded-xl p-6">
-          <div className="text-yellow-400 text-2xl font-bold text-center">Day Trader</div>
-          <div className="text-gray-300 text-center mt-2">Please sign in again.</div>
-          {err ? (
-            <div className="mt-4 bg-red-600/20 border border-red-500 text-red-200 p-3 rounded">
-              {err}
+      <div className="page-bg">
+        <div className="shell">
+          <div className="contentCard">
+            <div className="contentInner">
+              <div className="card">
+                <div className="cardTitle">Checking your session…</div>
+                <div className="cardSub" style={{ marginTop: 6 }}>
+                  Please wait a moment.
+                </div>
+              </div>
             </div>
-          ) : null}
-          <a
-            href="/signin"
-            className="mt-6 block w-full p-3 rounded bg-yellow-500 text-black font-bold text-center hover:bg-yellow-400 transition"
-          >
-            Go to Sign in
-          </a>
+          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-black bg-[url('https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=2000&q=80')] bg-cover bg-center px-4">
-      <div className="w-full max-w-md bg-black/85 border border-yellow-500 rounded-xl p-6 shadow-lg backdrop-blur">
-        <div className="text-yellow-400 text-3xl font-extrabold text-center">Day Trader</div>
-        <div className="text-gray-300 text-center mt-2">
-          Secure verification required to unlock your dashboard.
-        </div>
+  // No session
+  if (!boot?.user) {
+    return (
+      <div className="page-bg">
+        <div className="shell">
+          <div className="contentCard">
+            <div className="contentInner">
+              <div className="card">
+                <div className="cardTitle">Verify your account</div>
+                <div className="cardSub" style={{ marginTop: 6 }}>
+                  We couldn’t confirm your session. Please sign in again.
+                </div>
+              </div>
 
-        <div className="mt-4 text-gray-200 text-sm text-center">
-          Signed in as <span className="text-yellow-300 font-semibold">{boot.user.email}</span>
-        </div>
+              {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
 
-        {err ? (
-          <div className="mt-4 bg-red-600/20 border border-red-500 text-red-200 p-3 rounded">
-            {err}
-          </div>
-        ) : null}
-
-        {msg ? (
-          <div className="mt-4 bg-emerald-600/15 border border-emerald-500 text-emerald-200 p-3 rounded">
-            {msg}
-          </div>
-        ) : null}
-
-        <div className="mt-6 space-y-4">
-          <button
-            className="w-full p-3 rounded bg-yellow-500 text-black font-bold hover:bg-yellow-400 transition disabled:opacity-60"
-            onClick={sendCode}
-            disabled={loading}
-          >
-            {loading ? "Working…" : "Send verification code to my email"}
-          </button>
-
-          <div>
-            <label className="block text-sm text-gray-200 mb-1">6-digit code</label>
-            <input
-              className="w-full p-3 rounded bg-black/50 text-white border border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 tracking-[0.35em] text-center font-bold"
-              inputMode="numeric"
-              pattern="\d*"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="••••••"
-            />
-            <div className="text-gray-400 text-xs mt-2">
-              The code is sent to your registered email address.
+              <a
+                href="/signin"
+                className="btnPrimary"
+                style={{ marginTop: 12, display: "inline-flex", justifyContent: "center", textDecoration: "none" }}
+              >
+                Go to Sign in
+              </a>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
 
-          <button
-            className="w-full p-3 rounded border border-yellow-500 text-yellow-300 font-bold hover:bg-yellow-500 hover:text-black transition disabled:opacity-60"
-            onClick={verify}
-            disabled={!canVerify || loading}
-          >
-            {loading ? "Verifying…" : "Verify & continue"}
-          </button>
+  // Verified flow UI
+  return (
+    <div className="page-bg">
+      <div className="shell">
+        <div className="contentCard">
+          <div className="contentInner">
+            <div className="card">
+              <div className="cardTitle">Verify your account</div>
+              <div className="cardSub" style={{ marginTop: 6 }}>
+                A secure one-time code has been sent to your email to unlock your dashboard.
+              </div>
+              <div className="cardSub" style={{ marginTop: 10 }}>
+                Signed in as <b>{boot.user.email}</b>
+              </div>
+            </div>
 
-          <div className="text-gray-300 text-center text-sm">
-            Not you?{" "}
-            <button
-              type="button"
-              className="text-yellow-400 hover:underline"
-              onClick={async () => {
-                await signOut();
-                router.replace("/signin");
-              }}
-            >
-              Sign out
-            </button>
+            {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
+            {msg ? <div className="flashOk" style={{ marginTop: 12 }}>{msg}</div> : null}
+
+            <div className="card" style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              <button className="btnPrimary" onClick={sendCode} disabled={loading}>
+                {loading ? "Working…" : "Send verification code to my email"}
+              </button>
+
+              <div>
+                <div className="cardSub" style={{ marginBottom: 6 }}>6-digit code</div>
+                <input
+                  className="input"
+                  inputMode="numeric"
+                  pattern="\d*"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="••••••"
+                  style={{ letterSpacing: "0.35em", textAlign: "center", fontWeight: 800 }}
+                />
+                <div className="cardSub" style={{ marginTop: 6 }}>
+                  The code is sent to your registered email address.
+                </div>
+              </div>
+
+              <button className="btnPrimary" onClick={verify} disabled={!canVerify || loading}>
+                {loading ? "Verifying…" : "Verify & continue"}
+              </button>
+
+              <div className="cardSub">
+                Not you?{" "}
+                <button
+                  type="button"
+                  className="linkBtn"
+                  onClick={async () => {
+                    await signOut();
+                    router.replace("/signin");
+                  }}
+                  style={{ color: "rgba(56,189,248,.95)", background: "transparent", border: 0, padding: 0, cursor: "pointer" }}
+                >
+                  Sign out
+                </button>
+              </div>
+            </div>
+
+            <div className="cardSub" style={{ marginTop: 10, opacity: 0.8 }}>
+              Tip: If you don’t see the email within 1–2 minutes, check Spam/Junk and try “Send verification code” again.
+            </div>
           </div>
         </div>
       </div>
