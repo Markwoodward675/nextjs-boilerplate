@@ -1,183 +1,141 @@
+// components/AppShellPro.jsx
 "use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+
+const navItems = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/wallet", label: "Wallets" },
+  { href: "/trade", label: "Trade" },
+  { href: "/invest", label: "Invest" },
+  { href: "/deposit", label: "Deposit" },
+  { href: "/withdraw", label: "Withdraw" },
+  { href: "/transactions", label: "Transactions" },
+  { href: "/affiliate", label: "Affiliate" },
+  { href: "/giftcards/buy", label: "Giftcards: Buy" },
+  { href: "/giftcards/sell", label: "Giftcards: Sell" },
+  { href: "/alerts", label: "Alerts" },
+  { href: "/settings", label: "Settings" },
+];
 
 export default function AppShellPro({ children, rightSlot = null }) {
-  const pathname = usePathname();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [open, setOpen] = useState(false);
 
-  const nav = useMemo(
-    () => [
-      { href: "/dashboard", label: "Dashboard" },
-      { href: "/wallet", label: "Wallets" },
-      { href: "/trade", label: "Trade" },
-      { href: "/invest", label: "Invest" },
-      { href: "/deposit", label: "Deposit" },
-      { href: "/withdraw", label: "Withdraw" },
-      { href: "/transactions", label: "Transactions" },
-      { href: "/affiliate", label: "Affiliate" },
-      { href: "/giftcards/buy", label: "Giftcards: Buy" },
-      { href: "/giftcards/sell", label: "Giftcards: Sell" },
-      { href: "/alerts", label: "Alerts" },
-      { href: "/settings", label: "Settings" },
-    ],
-    []
-  );
-
-  const isActive = (href) => {
-    if (!pathname) return false;
-    if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname === href || pathname.startsWith(href + "/");
-  };
+  const hasRightSlot = useMemo(() => {
+    // Only render right area if something real is passed in.
+    // null / undefined / false / "" -> treated as absent
+    return Boolean(rightSlot);
+  }, [rightSlot]);
 
   return (
-    <div className="dt-shell">
-      {/* Global responsive helpers to prevent dual rightSlot showing */}
-      <style jsx global>{`
-        .dt-hide-desktop { display: none; }
-        .dt-hide-mobile { display: flex; }
-
-        @media (max-width: 860px) {
-          .dt-hide-desktop { display: flex; }
-          .dt-hide-mobile { display: none; }
-        }
-
-        .dt-backdrop {
-          position: fixed;
-          inset: 0;
-          background: rgba(0,0,0,.55);
-          z-index: 40;
-        }
-        .dt-drawer {
-          position: fixed;
-          top: 0;
-          right: 0;
-          height: 100vh;
-          width: min(360px, 92vw);
-          background: rgba(10,10,12,.98);
-          border-left: 1px solid rgba(255,255,255,.08);
-          z-index: 50;
-          padding: 14px;
-          display: grid;
-          grid-template-rows: auto 1fr;
-          gap: 12px;
-        }
-        .dt-nav-title {
-          font-weight: 700;
-          letter-spacing: .3px;
-        }
-        .dt-nav {
-          display: grid;
-          gap: 8px;
-        }
-        .dt-nav a {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 10px 12px;
-          border-radius: 12px;
-          border: 1px solid rgba(255,255,255,.08);
-          color: rgba(255,255,255,.88);
-          text-decoration: none;
-        }
-        .dt-nav a:hover {
-          border-color: rgba(56,189,248,.35);
-        }
-        .dt-nav a.dt-active {
-          border-color: rgba(56,189,248,.55);
-          background: rgba(56,189,248,.08);
-        }
-      `}</style>
-
-      {/* Top header */}
-      <header className="topbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {/* Mobile hamburger */}
-          <button
-            className="pillBtn dt-hide-desktop"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open navigation"
-            type="button"
-          >
-            ☰
-          </button>
-
-          <div style={{ lineHeight: 1.1 }}>
-            <div style={{ fontWeight: 800 }}>DT</div>
-            <div className="cardSub" style={{ marginTop: 2 }}>
-              Day Trader
-              <span style={{ opacity: 0.65 }}> • Markets • Wallets • Execution</span>
+    <div className="min-h-screen bg-black text-white">
+      {/* Topbar */}
+      <header className="sticky top-0 z-50 border-b border-yellow-500/25 bg-black/80 backdrop-blur">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+          {/* Brand */}
+          <div className="flex items-center gap-3 min-w-[180px]">
+            <div className="h-9 w-9 rounded-xl border border-yellow-500/60 bg-black/50 flex items-center justify-center overflow-hidden">
+              {/* NOTE: No onError handlers here (build-safe) */}
+              <img src="/icon.png" alt="Day Trader" className="h-7 w-7" />
+            </div>
+            <div className="leading-tight">
+              <div className="font-semibold text-yellow-400">Day Trader</div>
+              <div className="text-[11px] text-slate-400">
+                Markets • Wallets • Execution
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Desktop-only right slot (prevents showing twice) */}
-        <div className="dt-hide-mobile" style={{ alignItems: "center", gap: 10 }}>
-          {rightSlot}
-        </div>
-      </header>
-
-      {/* Desktop sidebar */}
-      <div className="appGrid" style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 14 }}>
-        <aside className="sidebar dt-hide-mobile" style={{ display: "grid", gap: 10, alignContent: "start" }}>
-          <div className="card">
-            <div className="cardTitle" style={{ fontSize: 14 }}>Navigation</div>
-            <div className="cardSub" style={{ marginTop: 4 }}>Quick links</div>
-          </div>
-
-          <nav className="dt-nav">
-            {nav.map((item) => (
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center gap-2 flex-1 justify-center">
+            {navItems.slice(0, 6).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={isActive(item.href) ? "dt-active" : ""}
+                className="px-3 py-2 rounded-full text-sm text-slate-200/85 hover:text-yellow-300 hover:bg-yellow-500/10 transition"
               >
-                <span>{item.label}</span>
-                <span style={{ opacity: 0.55 }}>›</span>
+                {item.label}
               </Link>
             ))}
+            <button
+              type="button"
+              className="px-3 py-2 rounded-full text-sm text-slate-200/85 hover:text-yellow-300 hover:bg-yellow-500/10 transition"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              aria-controls="dt-more-nav"
+            >
+              More
+            </button>
           </nav>
-        </aside>
 
-        {/* Main content */}
-        <main style={{ minWidth: 0 }}>{children}</main>
-      </div>
-
-      {/* Mobile drawer */}
-      {mobileOpen ? (
-        <>
-          <div className="dt-backdrop" onClick={() => setMobileOpen(false)} />
-          <div className="dt-drawer">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              <div className="dt-nav-title">Navigation</div>
-              <button className="pillBtn" onClick={() => setMobileOpen(false)} type="button">
-                ✕
-              </button>
-            </div>
-
-            {/* Mobile-only right slot INSIDE drawer (won’t show with desktop rightSlot) */}
-            <div className="dt-hide-desktop" style={{ display: "grid", gap: 10 }}>
+          {/* Right area — ONLY renders when rightSlot exists */}
+          {hasRightSlot ? (
+            <div className="flex items-center justify-end min-w-[180px]">
               {rightSlot}
             </div>
+          ) : (
+            // Keep spacing but render nothing visible (prevents layout jump)
+            <div className="min-w-[180px]" />
+          )}
 
-            <nav className="dt-nav" style={{ marginTop: 8 }}>
-              {nav.map((item) => (
+          {/* Mobile menu button */}
+          <button
+            type="button"
+            className="md:hidden px-3 py-2 rounded-full border border-yellow-500/40 text-yellow-200 hover:bg-yellow-500/10 transition"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls="dt-mobile-nav"
+          >
+            Menu
+          </button>
+        </div>
+
+        {/* Dropdown (Desktop “More”) */}
+        {open ? (
+          <div
+            id="dt-more-nav"
+            className="hidden md:block border-t border-yellow-500/15 bg-black/90"
+          >
+            <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap gap-2">
+              {navItems.slice(6).map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={isActive(item.href) ? "dt-active" : ""}
-                  onClick={() => setMobileOpen(false)}
+                  className="px-3 py-2 rounded-full text-sm text-slate-200/85 hover:text-yellow-300 hover:bg-yellow-500/10 transition"
+                  onClick={() => setOpen(false)}
                 >
-                  <span>{item.label}</span>
-                  <span style={{ opacity: 0.55 }}>›</span>
+                  {item.label}
                 </Link>
               ))}
-            </nav>
+            </div>
           </div>
-        </>
-      ) : null}
+        ) : null}
+
+        {/* Mobile nav */}
+        {open ? (
+          <div
+            id="dt-mobile-nav"
+            className="md:hidden border-t border-yellow-500/15 bg-black/90"
+          >
+            <div className="px-4 py-3 grid gap-1">
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="px-3 py-2 rounded-xl text-sm text-slate-200/85 hover:text-yellow-300 hover:bg-yellow-500/10 transition"
+                  onClick={() => setOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </header>
+
+      {/* Page content */}
+      <div className="max-w-6xl mx-auto px-4 py-6">{children}</div>
     </div>
   );
 }
