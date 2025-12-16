@@ -100,12 +100,8 @@ export default function VerifyCodePage() {
       <div className="w-full max-w-md bg-black/80 border border-yellow-500/80 rounded-2xl p-6 shadow-2xl backdrop-blur">
         {/* Header */}
         <div className="flex items-center justify-center gap-3">
-          <img
-            src={ICON_SRC}
-            alt="Day Trader"
-            className="h-10 w-10 rounded-xl border border-yellow-500/50 bg-black/60 p-1"
-            onError={(e) => (e.currentTarget.style.display = "none")}
-          />
+          <img src="/icon.png" alt="Day Trader" className="h-10 w-10 rounded-xl border border-yellow-500/50 bg-black/60 p-1" />
+
           <div className="text-center">
             <div className="text-2xl font-extrabold text-yellow-400 leading-tight">
               Day Trader
