@@ -7,137 +7,157 @@ const BG =
 export default function HomePage() {
   return (
     <div
-      className="min-h-screen bg-black bg-cover bg-center px-4"
+      className="min-h-screen bg-black bg-cover bg-center"
       style={{ backgroundImage: `url('${BG}')` }}
     >
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="w-full max-w-5xl bg-black/80 border border-yellow-500/80 rounded-2xl p-6 md:p-8 shadow-2xl backdrop-blur">
-          {/* Header (same as auth pages) */}
-          <div className="flex items-center justify-center gap-3">
-            {/* ✅ Build-safe: no onError handlers */}
-            <img
-              src="/icon.png"
-              alt="Day Trader"
-              className="h-11 w-11 rounded-xl border border-yellow-500/50 bg-black/60 p-1"
-            />
+      {/* Dark overlay for contrast */}
+      <div className="min-h-screen bg-black/70">
+        {/* Header */}
+        <header className="sticky top-0 z-50 border-b border-yellow-500/20 bg-black/70 backdrop-blur">
+          <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+            {/* Brand */}
+            <Link href="/" className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl border border-yellow-500/50 bg-black/60 p-1 flex items-center justify-center">
+                {/* Build-safe: no event handlers */}
+                <img src="/icon.png" alt="Day Trader" className="h-7 w-7" />
+              </div>
+              <div className="leading-tight">
+                <div className="text-base font-semibold text-yellow-400">
+                  Day Trader
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  Markets • Wallets • Execution
+                </div>
+              </div>
+            </Link>
 
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-extrabold text-yellow-400 leading-tight">
-                Day Trader
-              </div>
-              <div className="text-[11px] uppercase tracking-[0.28em] text-yellow-200/80">
-                Markets • Wallets • Execution
-              </div>
-            </div>
+            {/* Right actions */}
+            <nav className="flex items-center gap-2">
+              <Link
+                href="/signin"
+                className="px-4 py-2 rounded-full border border-yellow-500/40 text-sm font-medium text-slate-200 hover:bg-yellow-500/10 hover:border-yellow-500/60 transition"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="px-4 py-2 rounded-full bg-yellow-500 text-sm font-extrabold text-black hover:bg-yellow-400 transition"
+              >
+                Create account
+              </Link>
+            </nav>
           </div>
+        </header>
 
-          <div className="mt-7 grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
-            {/* Left: copy */}
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.26em] text-emerald-300/90">
-                Trading platform interface
+        {/* Body */}
+        <main className="max-w-6xl mx-auto px-4 py-10 md:py-14">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+            {/* Left */}
+            <div className="bg-black/70 border border-yellow-500/20 rounded-2xl p-6 md:p-8 shadow-2xl backdrop-blur">
+              <div className="text-[11px] uppercase tracking-[0.26em] text-slate-400">
+                Dashboard · Wallets · Verification
               </div>
 
-              <h1 className="mt-3 text-3xl md:text-4xl font-semibold text-slate-50">
-                Structure your trading, capital, and affiliate revenue in one
-                place.
+              <h1 className="mt-3 text-3xl md:text-4xl font-semibold text-slate-100">
+                Control your trading structure, capital flow, and affiliate revenue.
               </h1>
 
-              <p className="mt-3 text-sm md:text-base text-slate-300 max-w-xl">
-                Consolidate wallets, performance tracking, investment
-                allocations, and affiliate earnings into a single dashboard—built
-                for clarity, discipline, and repeatable execution.
+              <p className="mt-3 text-sm md:text-base text-slate-300">
+                Day Trader helps you organize balances, track simulated activity,
+                and maintain a clear view of performance. Built for disciplined
+                execution and clean reporting.
               </p>
 
               <div className="mt-6 flex flex-col sm:flex-row gap-3">
                 <Link
                   href="/signup"
-                  className="inline-flex items-center justify-center rounded-full bg-yellow-500 px-7 py-3 text-sm font-extrabold text-black hover:bg-yellow-400 transition"
+                  className="inline-flex items-center justify-center rounded-full bg-yellow-500 px-6 py-3 text-sm font-extrabold text-black hover:bg-yellow-400 transition"
                 >
                   Create account
                 </Link>
 
                 <Link
                   href="/signin"
-                  className="inline-flex items-center justify-center rounded-full border border-yellow-500/60 px-7 py-3 text-sm font-semibold text-yellow-200 hover:bg-yellow-500/10 transition"
+                  className="inline-flex items-center justify-center rounded-full border border-yellow-500/40 px-6 py-3 text-sm font-semibold text-slate-200 hover:bg-yellow-500/10 hover:border-yellow-500/60 transition"
                 >
                   Sign in
                 </Link>
               </div>
 
-              <p className="mt-4 text-[12px] text-slate-400 max-w-xl">
-                This platform provides tools and analytics only. Order execution,
-                custody, and regulation remain with your own brokers, exchanges,
-                and custodians.
-              </p>
+              <div className="mt-5 text-[12px] text-slate-400 leading-relaxed">
+                <span className="text-slate-300 font-medium">Note:</span>{" "}
+                This is an educational/simulation platform — not a broker.
+                Trading execution and custody remain with your own providers.
+              </div>
             </div>
 
-            {/* Right: chart card */}
-            <div className="flex items-center justify-center">
-              <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-950/70 p-4 shadow-[0_18px_45px_rgba(0,0,0,0.7)]">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                      Multi-market view
-                    </p>
-                    <p className="text-xs text-slate-300">
-                      BTC · ETH · Stablecoins · Index
-                    </p>
+            {/* Right */}
+            <div className="bg-black/70 border border-yellow-500/20 rounded-2xl p-6 md:p-8 shadow-2xl backdrop-blur">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                    Multi-market overview
                   </div>
-                  <div className="text-[10px] text-emerald-300 px-3 py-1 rounded-full border border-emerald-500/40 bg-slate-900/80">
-                    <span className="relative z-10">Risk-controlled mode</span>
+                  <div className="text-sm text-slate-300 mt-1">
+                    BTC · ETH · Stablecoins · Index
                   </div>
                 </div>
 
-                {/* stylized line */}
-                <div className="h-24 mb-4 relative">
-                  <svg
-                    viewBox="0 0 200 80"
-                    className="w-full h-full text-sky-400/80"
-                  >
-                    <polyline
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      points="0,60 30,40 50,30 70,45 95,20 120,45 140,30 165,45 190,35"
+                <div className="text-[10px] text-yellow-200 px-3 py-1 rounded-full border border-yellow-500/30 bg-black/50">
+                  Risk-controlled mode
+                </div>
+              </div>
+
+              {/* Chart line */}
+              <div className="h-28 mt-6 relative">
+                <svg viewBox="0 0 200 80" className="w-full h-full text-sky-400/70">
+                  <polyline
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    points="0,60 30,40 50,30 70,45 95,20 120,45 140,30 165,45 190,35"
+                  />
+                </svg>
+                <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black via-transparent to-transparent" />
+              </div>
+
+              {/* Volume bars */}
+              <div className="flex items-end gap-[4px] h-16 mt-5">
+                {[10, 24, 16, 32, 20, 42, 18, 28, 36, 14, 30, 22].map((h, idx) => (
+                  <div key={idx} className="flex-1 flex items-end justify-center">
+                    <div
+                      className="w-[6px] rounded-full bg-gradient-to-t from-slate-800 via-sky-500/60 to-yellow-300/70"
+                      style={{ height: `${h}px` }}
                     />
-                  </svg>
-                  <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
-                </div>
+                  </div>
+                ))}
+              </div>
 
-                {/* volume bars */}
-                <div className="flex items-end gap-[3px] h-16 mb-4">
-                  {[8, 22, 16, 30, 22, 38, 18, 26, 32, 14, 28, 20].map(
-                    (h, idx) => (
-                      <div
-                        key={idx}
-                        className="flex-1 flex items-end justify-center"
-                      >
-                        <div
-                          className="w-[6px] rounded-full bg-gradient-to-t from-slate-800 via-sky-500/70 to-emerald-400/80"
-                          style={{ height: `${h}px` }}
-                        />
-                      </div>
-                    )
-                  )}
-                </div>
+              <div className="mt-5 text-[12px] text-slate-400">
+                Keep execution systematic: setup → risk → allocation → review.
+                Your dashboard stays clean, fast, and consistent.
+              </div>
 
-                <p className="text-[11px] text-slate-400">
-                  Build repeatable execution: directional bias, multi-timeframe
-                  context, and strict risk limits—so decisions stay systematic
-                  under pressure.
-                </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                <span className="text-[11px] px-3 py-1 rounded-full border border-yellow-500/25 bg-black/40 text-slate-300">
+                  Email verification
+                </span>
+                <span className="text-[11px] px-3 py-1 rounded-full border border-yellow-500/25 bg-black/40 text-slate-300">
+                  Wallet tracking
+                </span>
+                <span className="text-[11px] px-3 py-1 rounded-full border border-yellow-500/25 bg-black/40 text-slate-300">
+                  Affiliate overview
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Footer hint */}
-          <div className="mt-7 text-center text-[11px] text-slate-500">
-            Secure sign-in • Email verification • Private dashboard access
-          </div>
-        </div>
-      </main>
+          <footer className="mt-10 text-center text-[11px] text-slate-500">
+            © {new Date().getFullYear()} Day Trader • Secure sign-in • Verification required
+          </footer>
+        </main>
+      </div>
     </div>
   );
 }
