@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 
 export default function BrandLogo({ size = 36 }) {
-  const [src, setSrc] = useState("/logo-mark.png");
+  const [src, setSrc] = useState("/brand/logo-mark.png");
 
   return (
     <Image
