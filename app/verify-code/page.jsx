@@ -15,7 +15,7 @@ import {
 export default function VerifyCodePage() {
   const router = useRouter();
 
-  const [boot, setBoot] = useState(null); // { user, profile }
+  const [boot, setBoot] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const [code, setCode] = useState("");
@@ -31,7 +31,6 @@ export default function VerifyCodePage() {
       setLoading(true);
       setErr("");
       setMsg("");
-
       try {
         const b = await ensureUserBootstrap();
         if (cancelled) return;
@@ -48,7 +47,6 @@ export default function VerifyCodePage() {
 
         setBoot(b);
       } catch (e) {
-        // ✅ show error instead of instantly redirecting away
         setErr(getErrorMessage(e, "Session check failed. Please sign in again."));
         setBoot(null);
       } finally {
@@ -63,15 +61,14 @@ export default function VerifyCodePage() {
 
   const sendCode = async () => {
     if (!boot?.user?.$id) return;
-
     setErr("");
     setMsg("");
     setLoading(true);
     try {
       await createOrRefreshVerifyCode(boot.user.$id);
-      setMsg("A new 6-digit code was generated. Check your Alerts.");
+      setMsg("Verification code sent to your email.");
     } catch (e) {
-      setErr(getErrorMessage(e, "Unable to generate code."));
+      setErr(getErrorMessage(e, "Unable to send verification code email."));
     } finally {
       setLoading(false);
     }
@@ -79,7 +76,6 @@ export default function VerifyCodePage() {
 
   const verify = async () => {
     if (!boot?.user?.$id) return;
-
     setErr("");
     setMsg("");
     setLoading(true);
@@ -93,57 +89,69 @@ export default function VerifyCodePage() {
     }
   };
 
-  if (loading && !boot) return <div className="cardSub">Checking your session…</div>;
+  if (loading && !boot) {
+    return <div className="cardSub">Checking your session…</div>;
+  }
 
-  // If bootstrap failed, allow user to go sign in again
   if (!boot?.user) {
     return (
-      <div className="contentCard">
-        <div className="contentInner">
-          <div className="card">
-            <div className="cardTitle">Verify your account</div>
-            <div className="cardSub" style={{ marginTop: 6 }}>
-              We couldn’t confirm your session. Please sign in again.
+      <div className="min-h-screen flex items-center justify-center bg-black px-4">
+        <div className="w-full max-w-md bg-black/80 border border-yellow-500 rounded-xl p-6">
+          <div className="text-yellow-400 text-2xl font-bold text-center">Day Trader</div>
+          <div className="text-gray-300 text-center mt-2">Please sign in again.</div>
+          {err ? (
+            <div className="mt-4 bg-red-600/20 border border-red-500 text-red-200 p-3 rounded">
+              {err}
             </div>
-          </div>
-
-          {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
-
-          <div className="card" style={{ marginTop: 12 }}>
-            <a className="btnPrimary" href="/signin" style={{ display: "inline-block", textAlign: "center" }}>
-              Go to Sign in
-            </a>
-          </div>
+          ) : null}
+          <a
+            href="/signin"
+            className="mt-6 block w-full p-3 rounded bg-yellow-500 text-black font-bold text-center hover:bg-yellow-400 transition"
+          >
+            Go to Sign in
+          </a>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="contentCard">
-      <div className="contentInner">
-        <div className="card">
-          <div className="cardTitle">Verify your account</div>
-          <div className="cardSub" style={{ marginTop: 6 }}>
-            Enter your 6-digit code to unlock your dashboard.
-          </div>
-          <div className="cardSub" style={{ marginTop: 10 }}>
-            Signed in as <b>{boot.user.email}</b>.
-          </div>
+    <div className="min-h-screen flex items-center justify-center bg-black bg-[url('https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=2000&q=80')] bg-cover bg-center px-4">
+      <div className="w-full max-w-md bg-black/85 border border-yellow-500 rounded-xl p-6 shadow-lg backdrop-blur">
+        <div className="text-yellow-400 text-3xl font-extrabold text-center">Day Trader</div>
+        <div className="text-gray-300 text-center mt-2">
+          Secure verification required to unlock your dashboard.
         </div>
 
-        {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
-        {msg ? <div className="flashOk" style={{ marginTop: 12 }}>{msg}</div> : null}
+        <div className="mt-4 text-gray-200 text-sm text-center">
+          Signed in as <span className="text-yellow-300 font-semibold">{boot.user.email}</span>
+        </div>
 
-        <div className="card" style={{ marginTop: 12, display: "grid", gap: 10 }}>
-          <button className="btnPrimary" onClick={sendCode} disabled={loading}>
-            {loading ? "Working…" : "Send / regenerate 6-digit code"}
+        {err ? (
+          <div className="mt-4 bg-red-600/20 border border-red-500 text-red-200 p-3 rounded">
+            {err}
+          </div>
+        ) : null}
+
+        {msg ? (
+          <div className="mt-4 bg-emerald-600/15 border border-emerald-500 text-emerald-200 p-3 rounded">
+            {msg}
+          </div>
+        ) : null}
+
+        <div className="mt-6 space-y-4">
+          <button
+            className="w-full p-3 rounded bg-yellow-500 text-black font-bold hover:bg-yellow-400 transition disabled:opacity-60"
+            onClick={sendCode}
+            disabled={loading}
+          >
+            {loading ? "Working…" : "Send verification code to my email"}
           </button>
 
           <div>
-            <div className="cardSub" style={{ marginBottom: 6 }}>Enter 6-digit code</div>
+            <label className="block text-sm text-gray-200 mb-1">6-digit code</label>
             <input
-              className="input"
+              className="w-full p-3 rounded bg-black/50 text-white border border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 tracking-[0.35em] text-center font-bold"
               inputMode="numeric"
               pattern="\d*"
               maxLength={6}
@@ -151,25 +159,28 @@ export default function VerifyCodePage() {
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               placeholder="••••••"
             />
-            <div className="cardSub" style={{ marginTop: 6 }}>
-              You’ll see the generated code inside your Alerts page.
+            <div className="text-gray-400 text-xs mt-2">
+              The code is sent to your registered email address.
             </div>
           </div>
 
-          <button className="btnPrimary" onClick={verify} disabled={!canVerify || loading}>
-            {loading ? "Verifying…" : "Verify code"}
+          <button
+            className="w-full p-3 rounded border border-yellow-500 text-yellow-300 font-bold hover:bg-yellow-500 hover:text-black transition disabled:opacity-60"
+            onClick={verify}
+            disabled={!canVerify || loading}
+          >
+            {loading ? "Verifying…" : "Verify & continue"}
           </button>
 
-          <div className="cardSub">
+          <div className="text-gray-300 text-center text-sm">
             Not you?{" "}
             <button
               type="button"
-              className="pillBtn"
+              className="text-yellow-400 hover:underline"
               onClick={async () => {
                 await signOut();
                 router.replace("/signin");
               }}
-              style={{ marginLeft: 6 }}
             >
               Sign out
             </button>
