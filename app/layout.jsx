@@ -1,5 +1,5 @@
 import "./globals.css";
-import BrandLogo from "@/components/BrandLogo";
+import BrandLogo from "../components/BrandLogo";
 
 export const metadata = {
   title: "Day Trader",
