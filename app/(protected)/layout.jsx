@@ -5,13 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import AppShellPro from "../../components/AppShellPro";
 import AvatarModal from "../../components/AvatarModal";
 import FakeNotifications from "../../components/FakeNotifications";
-import { ensureUserBootstrap, signOut } from "../../lib/api";
+import { ensureUserBootstrap, signOut, getErrorMessage } from "../../lib/api";
 
 export default function ProtectedLayout({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [boot, setBoot] = useState(null); // { user, profile, wallets? }
+  const [boot, setBoot] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,38 +29,37 @@ export default function ProtectedLayout({ children }) {
         const user = b?.user || null;
         const profile = b?.profile || null;
 
-        // 1) Not signed in -> signin
+        // Not signed in -> /signin
         if (!user?.$id) {
           router.replace(`/signin?next=${encodeURIComponent(pathname || "/overview")}`);
           return;
         }
 
-        // 2) DB missing (bootstrap can throw, but guard anyway)
-        // If your DB env is missing, many pages will fail silently later.
-        // Send user to debug page with reason.
+        // If profile is missing, DO NOT send to debug.
+        // Route to verify-code (it can resend codes + we can show better errors there).
         if (!profile) {
-          router.replace("/debug-appwrite?from=protected&reason=profile_missing");
+          router.replace("/verify-code");
           return;
         }
 
-        // 3) Email/code verification gate -> verify page (NOT signin)
+        // Unverified -> /verify-code (not signin)
         const verified = Boolean(profile?.verificationCodeVerified);
         if (!verified) {
           router.replace("/verify-code");
           return;
         }
 
-        // 4) Allowed -> render children
+        // Verified -> allowed
       } catch (e) {
-        // Decide redirect based on error message
-        const msg = String(e?.message || e || "");
+        const msg = getErrorMessage(e, "Unable to load your session.");
 
+        // Only use debug for DB missing (real config problem)
         if (/database\s*\(db_id\)\s*is not configured/i.test(msg)) {
           router.replace("/debug-appwrite?from=protected&reason=db_missing");
           return;
         }
 
-        // default: treat as unauth / session expired
+        // Otherwise treat as unauth/session issue
         router.replace(`/signin?next=${encodeURIComponent(pathname || "/overview")}`);
       } finally {
         if (!cancel) setLoading(false);
@@ -123,10 +122,6 @@ export default function ProtectedLayout({ children }) {
     );
   }, [loading, boot?.user, badge, profile, displayName, router]);
 
-  // Gate rendering:
-  // - while loading -> show shell with nothing (or a tiny loading)
-  // - if not verified -> children should not render (we redirect)
-  // - if not signed in -> children should not render (we redirect)
   const canRenderChildren =
     !loading && Boolean(boot?.user?.$id) && Boolean(profile?.verificationCodeVerified);
 
