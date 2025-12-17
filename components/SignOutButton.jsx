@@ -5,6 +5,18 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { logoutUser } from "../lib/api";
 
+// OPTIONAL fallback (won't break if you don't have lib/appwrite.js)
+// If you already have a client Appwrite helper, update this import path.
+// If you don't, leave it as-is and the try/catch will safely ignore it.
+let account = null;
+try {
+  // If your project has lib/appwrite.js exporting `account`, this will work.
+  // eslint-disable-next-line global-require, import/no-unresolved
+  account = require("../lib/appwrite").account;
+} catch (e) {
+  // no-op: fallback will be disabled if not present
+}
+
 /**
  * A reusable sign-out button that logs the user out
  * and sends them back to /signin so they can switch accounts.
@@ -25,14 +37,27 @@ export default function SignOutButton({
   const handleSignOut = async () => {
     if (loading) return;
     setLoading(true);
+
     try {
-      await logoutUser();
+      // Primary workflow (your server/api based logout)
+      if (typeof logoutUser === "function") {
+        await logoutUser();
+      } else if (account?.deleteSession) {
+        // Fallback (client-side Appwrite logout)
+        await account.deleteSession("current");
+      }
     } catch (err) {
       console.error("Sign out error:", err);
       // best-effort, still continue to /signin
+      try {
+        if (account?.deleteSession) await account.deleteSession("current");
+      } catch (e) {
+        // ignore
+      }
     } finally {
       setLoading(false);
       router.replace("/signin");
+      router.refresh();
     }
   };
 
