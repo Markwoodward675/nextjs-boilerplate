@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, getErrorMessage } from "../../lib/api";
-import { account, isAppwriteConfigured, databases, ID } from "../../lib/appwrite";
+import { isAppwriteConfigured } from "../../lib/appwrite";
 
 const ICON_SRC = "/icon.png"; // /public/icon.png
 
@@ -20,8 +20,8 @@ export default function SigninPage() {
 
   const [email, setEmail] = useState("");
   const [nextPath, setNextPath] = useState(""); // optional override from query
-
   const [password, setPassword] = useState("");
+
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -36,18 +36,44 @@ export default function SigninPage() {
     } catch {}
   }, []);
 
-  const can = useMemo(() => email.trim() && password, [email, password]);
+  // Show config error immediately if missing
+  useEffect(() => {
+    if (!isAppwriteConfigured) {
+      setErr(
+        "Appwrite is not configured. Set NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID in Vercel (Production + Preview), then redeploy."
+      );
+    }
+  }, []);
+
+  const can = useMemo(() => {
+    if (!isAppwriteConfigured) return false;
+    return Boolean(email.trim() && password);
+  }, [email, password]);
 
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
+
+    if (!isAppwriteConfigured) {
+      setErr(
+        "Appwrite is not configured. Please set NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID and redeploy."
+      );
+      return;
+    }
 
     setErr("");
     setBusy(true);
 
     try {
       const res = await signIn(email.trim(), password);
-      const dest = nextPath || res?.next || "/verify-code";
+
+      // IMPORTANT: only allow internal redirects
+      const fallback = "/verify-code";
+      const dest =
+        safeInternalPath(nextPath) ||
+        safeInternalPath(res?.next) ||
+        fallback;
+
       router.replace(dest);
     } catch (e2) {
       setErr(getErrorMessage(e2, "Unable to sign in."));
@@ -59,7 +85,6 @@ export default function SigninPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-[#050814]">
       <div className="absolute inset-0 pointer-events-none">
-        {/* neon tech gradients (NO background image) */}
         <div className="absolute -top-40 -left-40 h-[520px] w-[520px] rounded-full blur-3xl opacity-40 bg-purple-600/30" />
         <div className="absolute -bottom-40 -right-40 h-[520px] w-[520px] rounded-full blur-3xl opacity-40 bg-blue-600/30" />
         <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] [background-size:56px_56px]" />
@@ -69,11 +94,7 @@ export default function SigninPage() {
         {/* Header */}
         <div className="flex items-center justify-center gap-3">
           <div className="h-11 w-11 rounded-2xl border border-yellow-500/40 bg-black/60 flex items-center justify-center overflow-hidden">
-            <img
-              src={ICON_SRC}
-              alt="Day Trader"
-              className="h-9 w-9 object-contain"
-            />
+            <img src={ICON_SRC} alt="Day Trader" className="h-9 w-9 object-contain" />
           </div>
 
           <div className="text-center">
@@ -109,13 +130,12 @@ export default function SigninPage() {
               onChange={(ev) => setEmail(ev.target.value)}
               placeholder="you@example.com"
               autoComplete="email"
+              disabled={!isAppwriteConfigured}
             />
           </div>
 
           <div>
-            <label className="block text-sm text-slate-200 mb-1">
-              Password
-            </label>
+            <label className="block text-sm text-slate-200 mb-1">Password</label>
             <input
               className="w-full p-3 rounded-xl bg-black/40 text-white border border-yellow-500/35 focus:outline-none focus:ring-2 focus:ring-yellow-400/70"
               type="password"
@@ -123,6 +143,7 @@ export default function SigninPage() {
               onChange={(ev) => setPassword(ev.target.value)}
               placeholder="••••••••"
               autoComplete="current-password"
+              disabled={!isAppwriteConfigured}
             />
           </div>
 
