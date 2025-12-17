@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   ensureUserBootstrap,
   createOrRefreshVerifyCode,
+  verifySixDigitCode,
   getErrorMessage,
 } from "../../lib/api";
+
 
 export default function VerifyCodePage() {
   const router = useRouter();
