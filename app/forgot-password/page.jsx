@@ -1,106 +1,72 @@
-// app/forgot-password/page.jsx
 "use client";
 
 import { useMemo, useState } from "react";
-import { sendPasswordRecovery, getErrorMessage } from "../../lib/api";
-
-const BG =
-  "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=2000&q=80";
+import Link from "next/link";
+import { requestPasswordRecovery, getErrorMessage } from "../../lib/api";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [msg, setMsg] = useState("");
+  const [ok, setOk] = useState("");
 
-  const can = useMemo(() => email.trim(), [email]);
+  const can = useMemo(() => email.trim().includes("@"), [email]);
 
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
-
     setErr("");
-    setMsg("");
+    setOk("");
     setBusy(true);
 
     try {
-      await sendPasswordRecovery(email.trim());
-      setMsg("Password reset email sent. Check your inbox.");
+      await requestPasswordRecovery(email.trim());
+      setOk("Recovery link sent. Check your email and follow the instructions to reset your password.");
     } catch (e2) {
-      setErr(getErrorMessage(e2, "Unable to send reset email."));
+      setErr(getErrorMessage(e2, "Unable to send recovery email."));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center bg-black bg-cover bg-center px-4"
-      style={{ backgroundImage: `url('${BG}')` }}
-    >
-      <div className="w-full max-w-md bg-black/80 border border-yellow-500/80 rounded-2xl p-6 shadow-2xl backdrop-blur">
-        <div className="flex items-center justify-center gap-3">
-          <img
-            src="/icon.png"
-            alt="Day Trader"
-            className="h-10 w-10 rounded-xl border border-yellow-500/50 bg-black/60 p-1"
-          />
-          <div className="text-center">
-            <div className="text-2xl font-extrabold text-yellow-400 leading-tight">
-              Day Trader
-            </div>
-            <div className="text-[11px] uppercase tracking-[0.28em] text-yellow-200/80">
-              Markets • Wallets • Execution
+    <div className="dt-shell" style={{ paddingTop: 28 }}>
+      <div className="contentCard">
+        <div className="contentInner">
+          <div className="card">
+            <div className="cardTitle">Reset your password</div>
+            <div className="cardSub" style={{ marginTop: 6 }}>
+              Enter your account email. We’ll send a secure recovery link.
             </div>
           </div>
+
+          {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
+          {ok ? <div className="flashOk" style={{ marginTop: 12 }}>{ok}</div> : null}
+
+          <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
+            <div>
+              <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
+              <input
+                className="input"
+                type="email"
+                value={email}
+                onChange={(x) => setEmail(x.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+              />
+            </div>
+
+            <button className="btnPrimary" disabled={!can || busy} type="submit">
+              {busy ? "Sending…" : "Send recovery email"}
+            </button>
+
+            <div className="cardSub" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <Link href="/signin" style={{ color: "rgba(245,158,11,.95)" }}>Back to sign in</Link>
+              <span style={{ opacity: 0.6 }}>•</span>
+              <Link href="/signup" style={{ color: "rgba(245,158,11,.95)" }}>Create account</Link>
+            </div>
+          </form>
         </div>
-
-        <div className="mt-5 text-center">
-          <p className="text-gray-200 font-semibold">Forgot password</p>
-          <p className="text-gray-300 text-sm mt-1">
-            Enter your email and we’ll send a secure reset link.
-          </p>
-        </div>
-
-        {err ? (
-          <div className="mt-4 bg-red-600/20 border border-red-500/70 text-red-100 p-3 rounded-lg text-sm">
-            {err}
-          </div>
-        ) : null}
-
-        {msg ? (
-          <div className="mt-4 bg-emerald-600/20 border border-emerald-500/60 text-emerald-100 p-3 rounded-lg text-sm">
-            {msg}
-          </div>
-        ) : null}
-
-        <form onSubmit={submit} className="mt-6 space-y-4">
-          <div>
-            <label className="block text-sm text-gray-200 mb-1">Email</label>
-            <input
-              className="w-full p-3 rounded-lg bg-black/50 text-white border border-yellow-500/70 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              autoComplete="email"
-            />
-          </div>
-
-          <button
-            className="w-full p-3 rounded-lg bg-yellow-500 text-black font-extrabold hover:bg-yellow-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            disabled={!can || busy}
-            type="submit"
-          >
-            {busy ? "Sending…" : "Send reset link"}
-          </button>
-
-          <div className="text-gray-300 text-center text-sm">
-            <a className="text-yellow-400 hover:underline" href="/signin">
-              Back to Sign in
-            </a>
-          </div>
-        </form>
       </div>
     </div>
   );
