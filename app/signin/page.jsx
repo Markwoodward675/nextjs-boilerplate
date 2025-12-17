@@ -19,14 +19,13 @@ export default function SigninPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
-  const [nextPath, setNextPath] = useState(""); // optional override from query
+  const [nextPath, setNextPath] = useState("");
   const [password, setPassword] = useState("");
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    // build-safe query parsing (no useSearchParams)
     try {
       const sp = new URLSearchParams(window.location.search);
       const e = sp.get("email") || "";
@@ -36,7 +35,6 @@ export default function SigninPage() {
     } catch {}
   }, []);
 
-  // Show config error immediately if missing
   useEffect(() => {
     if (!isAppwriteConfigured) {
       setErr(
@@ -67,7 +65,6 @@ export default function SigninPage() {
     try {
       const res = await signIn(email.trim(), password);
 
-      // IMPORTANT: only allow internal redirects
       const fallback = "/verify-code";
       const dest =
         safeInternalPath(nextPath) ||
@@ -122,8 +119,12 @@ export default function SigninPage() {
 
         <form onSubmit={submit} className="mt-6 space-y-4">
           <div>
-            <label className="block text-sm text-slate-200 mb-1">Email</label>
+            <label htmlFor="signin-email" className="block text-sm text-slate-200 mb-1">
+              Email
+            </label>
             <input
+              id="signin-email"
+              name="email"
               className="w-full p-3 rounded-xl bg-black/40 text-white border border-yellow-500/35 focus:outline-none focus:ring-2 focus:ring-yellow-400/70"
               type="email"
               value={email}
@@ -135,8 +136,12 @@ export default function SigninPage() {
           </div>
 
           <div>
-            <label className="block text-sm text-slate-200 mb-1">Password</label>
+            <label htmlFor="signin-password" className="block text-sm text-slate-200 mb-1">
+              Password
+            </label>
             <input
+              id="signin-password"
+              name="password"
               className="w-full p-3 rounded-xl bg-black/40 text-white border border-yellow-500/35 focus:outline-none focus:ring-2 focus:ring-yellow-400/70"
               type="password"
               value={password}
