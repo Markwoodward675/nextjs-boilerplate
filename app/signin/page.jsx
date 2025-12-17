@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { signIn, getErrorMessage } from "../../lib/api";
 import { isAppwriteConfigured } from "../../lib/appwrite";
 
-const ICON_SRC = "/icon.png"; // /public/icon.png
+const ICON_SRC = "/icon.png";
 
 function safeInternalPath(p) {
   if (!p) return "";
@@ -25,6 +25,11 @@ export default function SigninPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
+  // IMPORTANT: config message is NOT stored in err anymore
+  const configError = !isAppwriteConfigured
+    ? "Appwrite is not configured. Set NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID."
+    : "";
+
   useEffect(() => {
     try {
       const sp = new URLSearchParams(window.location.search);
@@ -33,14 +38,6 @@ export default function SigninPage() {
       if (e) setEmail(e);
       if (n) setNextPath(safeInternalPath(n));
     } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (!isAppwriteConfigured) {
-      setErr(
-        "Appwrite is not configured. Set NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID in Vercel (Production + Preview), then redeploy."
-      );
-    }
   }, []);
 
   const can = useMemo(() => {
@@ -52,12 +49,7 @@ export default function SigninPage() {
     e.preventDefault();
     if (busy) return;
 
-    if (!isAppwriteConfigured) {
-      setErr(
-        "Appwrite is not configured. Please set NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID and redeploy."
-      );
-      return;
-    }
+    if (!isAppwriteConfigured) return; // configError is already shown
 
     setErr("");
     setBusy(true);
@@ -72,6 +64,7 @@ export default function SigninPage() {
         fallback;
 
       router.replace(dest);
+      router.refresh();
     } catch (e2) {
       setErr(getErrorMessage(e2, "Unable to sign in."));
     } finally {
@@ -111,7 +104,11 @@ export default function SigninPage() {
           </p>
         </div>
 
-        {err ? (
+        {configError ? (
+          <div className="mt-4 bg-red-600/15 border border-red-500/50 text-red-100 p-3 rounded-xl text-sm">
+            {configError}
+          </div>
+        ) : err ? (
           <div className="mt-4 bg-red-600/15 border border-red-500/50 text-red-100 p-3 rounded-xl text-sm">
             {err}
           </div>
@@ -153,7 +150,7 @@ export default function SigninPage() {
           </div>
 
           <button
-            className="w-full p-3 rounded-xl bg-yellow-500 text-black font-extrabold hover:bg-yellow-400 transition shadow-[0_0_0_1px_rgba(245,158,11,.35),0_18px_40px_rgba(0,0,0,.55)] disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full p-3 rounded-xl bg-yellow-500 text-black font-extrabold hover:bg-yellow-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
             disabled={!can || busy}
             type="submit"
           >
