@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, getErrorMessage } from "../../lib/api";
-import { isAppwriteConfigured } from "@/lib/appwrite";
+import { account, isAppwriteConfigured } from "../../lib/appwrite";
 
 const ICON_SRC = "/icon.png"; // /public/icon.png
 
