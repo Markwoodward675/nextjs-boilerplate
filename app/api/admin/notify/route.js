@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAdmin, requireAdminKey } from "@/lib/appwriteAdmin";
+import { getAdmin, requireAdminAuth } from "../../../../lib/appwriteAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ const allowedSeverity = new Set(["low", "medium", "high", "critical"]);
 
 export async function POST(req) {
   try {
-    requireAdminKey(req);
+    requireAdminAuth(req);
     const { db, DATABASE_ID, ID } = getAdmin();
 
     const body = await req.json().catch(() => ({}));
