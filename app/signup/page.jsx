@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signUp, getErrorMessage } from "../../lib/api";
-import { account, isAppwriteConfigured } from "../../lib/appwrite";
+import { isAppwriteConfigured } from "../../lib/appwrite";
 
 const ICON_SRC = "/icon.png"; // /public/icon.png
 
@@ -15,7 +15,6 @@ export default function SignupPage() {
   const router = useRouter();
 
   const [ref, setRef] = useState("");
-
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,13 +30,30 @@ export default function SignupPage() {
     } catch {}
   }, []);
 
+  // Show config error immediately if missing
+  useEffect(() => {
+    if (!isAppwriteConfigured) {
+      setErr(
+        "Appwrite is not configured. Set NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID in Vercel (Production + Preview), then redeploy."
+      );
+    }
+  }, []);
+
   const can = useMemo(() => {
-    return email.trim() && fullName.trim() && password && password.length >= 8;
+    if (!isAppwriteConfigured) return false;
+    return Boolean(email.trim() && fullName.trim() && password && password.length >= 8);
   }, [email, fullName, password]);
 
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
+
+    if (!isAppwriteConfigured) {
+      setErr(
+        "Appwrite is not configured. Please set NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID and redeploy."
+      );
+      return;
+    }
 
     setErr("");
     setBusy(true);
@@ -55,12 +71,10 @@ export default function SignupPage() {
       const msg = getErrorMessage(e2, "Unable to create account.");
 
       // If user already exists:
-      // - If password matches, lib/api.js will sign in and return next=/verify-code or /dashboard
-      // - If password doesn't match, we send them to /signin with email prefilled
+      // - redirect to /signin with email prefilled
       if (isExistsError(e2, msg)) {
-        const next = e2?.next || "/signin";
         const q = `?email=${encodeURIComponent(email.trim())}`;
-        router.replace(next === "/signin" ? `${next}${q}` : next);
+        router.replace(`/signin${q}`);
         return;
       }
 
@@ -82,11 +96,7 @@ export default function SignupPage() {
         {/* Header */}
         <div className="flex items-center justify-center gap-3">
           <div className="h-11 w-11 rounded-2xl border border-yellow-500/40 bg-black/60 flex items-center justify-center overflow-hidden">
-            <img
-              src={ICON_SRC}
-              alt="Day Trader"
-              className="h-9 w-9 object-contain"
-            />
+            <img src={ICON_SRC} alt="Day Trader" className="h-9 w-9 object-contain" />
           </div>
 
           <div className="text-center">
@@ -114,15 +124,14 @@ export default function SignupPage() {
 
         <form onSubmit={submit} className="mt-6 space-y-4">
           <div>
-            <label className="block text-sm text-slate-200 mb-1">
-              Full name
-            </label>
+            <label className="block text-sm text-slate-200 mb-1">Full name</label>
             <input
               className="w-full p-3 rounded-xl bg-black/40 text-white border border-yellow-500/35 focus:outline-none focus:ring-2 focus:ring-yellow-400/70"
               value={fullName}
               onChange={(ev) => setFullName(ev.target.value)}
               placeholder="Your name"
               autoComplete="name"
+              disabled={!isAppwriteConfigured}
             />
           </div>
 
@@ -135,13 +144,12 @@ export default function SignupPage() {
               onChange={(ev) => setEmail(ev.target.value)}
               placeholder="you@example.com"
               autoComplete="email"
+              disabled={!isAppwriteConfigured}
             />
           </div>
 
           <div>
-            <label className="block text-sm text-slate-200 mb-1">
-              Password
-            </label>
+            <label className="block text-sm text-slate-200 mb-1">Password</label>
             <input
               className="w-full p-3 rounded-xl bg-black/40 text-white border border-yellow-500/35 focus:outline-none focus:ring-2 focus:ring-yellow-400/70"
               type="password"
@@ -149,6 +157,7 @@ export default function SignupPage() {
               onChange={(ev) => setPassword(ev.target.value)}
               placeholder="Minimum 8 characters"
               autoComplete="new-password"
+              disabled={!isAppwriteConfigured}
             />
             <div className="text-[12px] text-slate-400 mt-1">
               Minimum 8 characters.
