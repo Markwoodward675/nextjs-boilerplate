@@ -1,23 +1,16 @@
 import { NextResponse } from "next/server";
-import { getAdmin, requireAdminKey } from "@/lib/appwriteAdmin";
+import { getAdmin, requireAdminAuth } from "../../../../lib/appwriteAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req) {
   try {
-    requireAdminKey(req);
+    await requireAdminAuth(req);
 
     const { db, users, DATABASE_ID, Query } = getAdmin();
 
-    const [
-      u,
-      profiles,
-      wallets,
-      transactions,
-      alerts,
-    ] = await Promise.all([
-      // users.list signature varies by SDK version; fallback if needed
+    const [u, profiles, wallets, transactions, alerts] = await Promise.all([
       (async () => {
         try {
           const r = await users.list();
