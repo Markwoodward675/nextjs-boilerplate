@@ -2,7 +2,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { account, isAppwriteConfigured } from "../../lib/appwrite";
+import { account, isAppwriteConfigured, createEmailSessionCompat } from "../../lib/appwrite";
+
 
 const ENDPOINT = (process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "").trim();
 const PROJECT_ID = (process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || "").trim();
