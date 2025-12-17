@@ -6,30 +6,21 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req) {
   try {
-    requireAdminAuth(req);
+    await requireAdminAuth(req);
+
     const { users } = getAdmin();
+    const r = await users.list();
 
-    const { searchParams } = new URL(req.url);
-    const q = (searchParams.get("q") || "").trim();
+    const out = (r?.users || []).map((u) => ({
+      $id: u.$id,
+      email: u.email,
+      name: u.name,
+      status: u.status,
+      $createdAt: u.$createdAt,
+    }));
 
-    let list;
-    // SDK signatures can differ. Try best-supported patterns.
-    try {
-      list = q ? await users.list({ search: q }) : await users.list();
-    } catch {
-      // Fallback: list first 100 and filter
-      const r = await users.list();
-      const arr = r?.users || [];
-      list = { users: q ? arr.filter((u) =>
-        String(u?.email || "").includes(q) || String(u?.name || "").includes(q)
-      ) : arr };
-    }
-
-    return NextResponse.json({ users: list?.users || [] });
+    return NextResponse.json({ users: out });
   } catch (e) {
-    return NextResponse.json(
-      { error: e?.message || "Failed to load users." },
-      { status: e?.status || 500 }
-    );
+    return NextResponse.json({ error: e?.message || "Failed" }, { status: e?.status || 500 });
   }
 }
