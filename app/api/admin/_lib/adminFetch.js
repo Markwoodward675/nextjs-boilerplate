@@ -1,7 +1,7 @@
 export async function adminFetch(url, options = {}) {
-  const jwt = localStorage.getItem("dt_admin_jwt") || "";
+  const jwt = typeof window !== "undefined" ? localStorage.getItem("dt_admin_jwt") || "" : "";
   const headers = new Headers(options.headers || {});
-  headers.set("x-admin-jwt", jwt);
+  if (jwt) headers.set("x-admin-jwt", jwt);
 
   const res = await fetch(url, {
     ...options,
@@ -10,6 +10,11 @@ export async function adminFetch(url, options = {}) {
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || "Admin request failed.");
+  if (!res.ok) {
+    const msg = data?.error || `Request failed (${res.status})`;
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
