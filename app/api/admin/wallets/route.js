@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { getAdmin, requireAdminKey } from "@/lib/appwriteAdmin";
+import { getAdmin, requireAdminAuth } from "../../../../lib/appwriteAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req) {
   try {
-    requireAdminKey(req);
+    requireAdminAuth(req);
     const { db, DATABASE_ID, Query } = getAdmin();
 
     const { searchParams } = new URL(req.url);
