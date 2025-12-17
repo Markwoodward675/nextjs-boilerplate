@@ -23,14 +23,12 @@ export default function SignupPage() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    // build-safe query parsing
     try {
       const sp = new URLSearchParams(window.location.search);
       setRef(sp.get("ref") || "");
     } catch {}
   }, []);
 
-  // Show config error immediately if missing
   useEffect(() => {
     if (!isAppwriteConfigured) {
       setErr(
@@ -70,8 +68,7 @@ export default function SignupPage() {
     } catch (e2) {
       const msg = getErrorMessage(e2, "Unable to create account.");
 
-      // If user already exists:
-      // - redirect to /signin with email prefilled
+      // If user already exists, redirect to signin with prefilled email
       if (isExistsError(e2, msg)) {
         const q = `?email=${encodeURIComponent(email.trim())}`;
         router.replace(`/signin${q}`);
@@ -124,8 +121,12 @@ export default function SignupPage() {
 
         <form onSubmit={submit} className="mt-6 space-y-4">
           <div>
-            <label className="block text-sm text-slate-200 mb-1">Full name</label>
+            <label htmlFor="signup-fullname" className="block text-sm text-slate-200 mb-1">
+              Full name
+            </label>
             <input
+              id="signup-fullname"
+              name="fullName"
               className="w-full p-3 rounded-xl bg-black/40 text-white border border-yellow-500/35 focus:outline-none focus:ring-2 focus:ring-yellow-400/70"
               value={fullName}
               onChange={(ev) => setFullName(ev.target.value)}
@@ -136,8 +137,12 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="block text-sm text-slate-200 mb-1">Email</label>
+            <label htmlFor="signup-email" className="block text-sm text-slate-200 mb-1">
+              Email
+            </label>
             <input
+              id="signup-email"
+              name="email"
               className="w-full p-3 rounded-xl bg-black/40 text-white border border-yellow-500/35 focus:outline-none focus:ring-2 focus:ring-yellow-400/70"
               type="email"
               value={email}
@@ -149,8 +154,12 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="block text-sm text-slate-200 mb-1">Password</label>
+            <label htmlFor="signup-password" className="block text-sm text-slate-200 mb-1">
+              Password
+            </label>
             <input
+              id="signup-password"
+              name="password"
               className="w-full p-3 rounded-xl bg-black/40 text-white border border-yellow-500/35 focus:outline-none focus:ring-2 focus:ring-yellow-400/70"
               type="password"
               value={password}
@@ -159,9 +168,7 @@ export default function SignupPage() {
               autoComplete="new-password"
               disabled={!isAppwriteConfigured}
             />
-            <div className="text-[12px] text-slate-400 mt-1">
-              Minimum 8 characters.
-            </div>
+            <div className="text-[12px] text-slate-400 mt-1">Minimum 8 characters.</div>
           </div>
 
           <button
