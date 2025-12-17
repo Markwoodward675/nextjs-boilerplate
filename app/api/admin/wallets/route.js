@@ -4,26 +4,22 @@ import { getAdmin, requireAdminAuth } from "../../../../lib/appwriteAdmin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function walletsCollectionId() {
+  return process.env.NEXT_PUBLIC_APPWRITE_WALLETS_COLLECTION_ID || "wallets";
+}
+
 export async function GET(req) {
   try {
     await requireAdminAuth(req);
     const { db, DATABASE_ID, Query } = getAdmin();
 
-    const { searchParams } = new URL(req.url);
-    const userId = String(searchParams.get("userId") || "").trim();
-    if (!userId) return NextResponse.json({ error: "Missing userId." }, { status: 400 });
-
-    const r = await db.listDocuments(DATABASE_ID, "wallets", [
-      Query.equal("userId", [userId]),
+    const r = await db.listDocuments(DATABASE_ID, walletsCollectionId(), [
       Query.orderDesc("$createdAt"),
-      Query.limit(100),
+      Query.limit(50),
     ]);
 
     return NextResponse.json({ wallets: r?.documents || [] });
   } catch (e) {
-    return NextResponse.json(
-      { error: e?.message || "Failed to load wallets." },
-      { status: e?.status || 500 }
-    );
+    return NextResponse.json({ error: e?.message || "Failed" }, { status: e?.status || 500 });
   }
 }
