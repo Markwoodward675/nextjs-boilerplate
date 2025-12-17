@@ -2,11 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { account } from "../../lib/api"; // your lib/api should export `account` (Appwrite Account instance)
+import { signIn, ensureUserBootstrap } from "../../../lib/api";
+
+const ADMIN_EMAIL = "elonmuskite@gmail.com";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+
+  const [email, setEmail] = useState(ADMIN_EMAIL);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -16,33 +19,27 @@ export default function AdminLoginPage() {
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
-    setBusy(true);
+
     setErr("");
+    setBusy(true);
 
     try {
-      // Appwrite login
-      await account.createEmailPasswordSession(email.trim(), password);
+      await signIn(email.trim(), password);
 
-      // Get JWT for server verification
-      const jwt = await account.createJWT();
-      const token = jwt?.jwt;
-      if (!token) throw new Error("Unable to create admin JWT.");
+      // Gate: must be the admin email
+      const boot = await ensureUserBootstrap();
+      const signedInEmail = String(boot?.user?.email || "").toLowerCase();
 
-      // Store JWT client-side (for admin API calls)
-      localStorage.setItem("dt_admin_jwt", token);
+      if (signedInEmail !== ADMIN_EMAIL.toLowerCase()) {
+        setErr("Not authorized for admin access.");
+        // optional: sign out immediately if you want
+        // await signOut();
+        return;
+      }
 
-      // Establish httpOnly cookie session on server
-      const r = await fetch("/api/admin/session", {
-        method: "POST",
-        headers: { "x-admin-jwt": token },
-      });
-
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j?.error || "Admin session denied.");
-
-      router.replace("/admin");
+      router.replace("/admin/users");
     } catch (e2) {
-      setErr(e2?.message || "Unable to sign in as admin.");
+      setErr(e2?.message || "Unable to sign in.");
     } finally {
       setBusy(false);
     }
@@ -51,19 +48,37 @@ export default function AdminLoginPage() {
   return (
     <div className="dt-auth">
       <div className="dt-auth-card">
-        <div className="dt-auth-title">Admin Access</div>
-        <div className="dt-auth-sub">Sign in with your Appwrite admin user.</div>
+        <div className="dt-auth-title">Admin access</div>
+        <div className="dt-auth-sub">
+          Sign in with the authorized admin email to continue.
+        </div>
 
         {err ? <div className="dt-flash dt-flash-err">{err}</div> : null}
 
-        <form onSubmit={submit} className="dt-auth-form">
-          <label className="dt-label">Email</label>
-          <input className="dt-input" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <form onSubmit={submit} className="dt-form">
+          <label className="dt-label">
+            Email
+            <input
+              className="dt-input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </label>
 
-          <label className="dt-label">Password</label>
-          <input className="dt-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <label className="dt-label">
+            Password
+            <input
+              className="dt-input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </label>
 
-          <button className="dt-btn dt-btn-primary" disabled={!can || busy}>
+          <button className="dt-btn dt-btn-primary" disabled={!can || busy} type="submit">
             {busy ? "Signing in…" : "Sign in"}
           </button>
         </form>
