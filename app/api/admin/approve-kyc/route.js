@@ -1,36 +1,56 @@
-export const runtime = "nodejs";
-
 import { NextResponse } from "next/server";
-import { adminDb, ADMIN_DB_ID, requireAdminKey } from "../../../../lib/appwriteAdmin";
-import { Query } from "node-appwrite";
+import { getAdmin, requireAdminKey } from "@/lib/appwriteAdmin";
 
-// Change this to your real collection ID
-const COL_PROFILES = process.env.NEXT_PUBLIC_COL_PROFILES || "profiles";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
     requireAdminKey(req);
+    const { db, DATABASE_ID, ID, Query } = getAdmin();
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const userId = String(body?.userId || "").trim();
-    const status = String(body?.status || "approved").trim().toLowerCase(); // approved/rejected/pending
+    const approve = Boolean(body?.approve);
 
-    if (!userId) {
-      return NextResponse.json({ ok: false, error: "Missing userId" }, { status: 400 });
-    }
+    if (!userId) return NextResponse.json({ error: "Missing userId." }, { status: 400 });
 
-    // Assumes profile docId = userId (as in our bootstrap code)
-    const updated = await adminDb.updateDocument(ADMIN_DB_ID, COL_PROFILES, userId, {
-      kycStatus: status,
-      kycUpdatedAt: new Date().toISOString(),
+    // Find profile doc by userId
+    const found = await db.listDocuments(DATABASE_ID, "profiles", [
+      Query.equal("userId", [userId]),
+      Query.limit(1),
+    ]);
+
+    const doc = found?.documents?.[0];
+    if (!doc?.$id) return NextResponse.json({ error: "Profile not found." }, { status: 404 });
+
+    const newStatus = approve ? "approved" : "rejected";
+
+    await db.updateDocument(DATABASE_ID, "profiles", doc.$id, {
+      kycStatus: newStatus,
     });
 
-    return NextResponse.json({ ok: true, profile: updated });
+    await db.createDocument(DATABASE_ID, "alerts", ID.unique(), {
+      alertId: `kyc_${Date.now()}`,
+      title: approve ? "KYC Approved" : "KYC Rejected",
+      body: approve
+        ? "Your identity verification has been approved."
+        : "Your identity verification was rejected. Please resubmit with clearer documents.",
+      alertTitle: approve ? "KYC Approved" : "KYC Rejected",
+      alertMessage: approve
+        ? "Your identity verification has been approved."
+        : "Your identity verification was rejected. Please resubmit with clearer documents.",
+      severity: approve ? "low" : "high",
+      userId,
+      isResolved: false,
+      createdAt: new Date().toISOString(),
+    });
+
+    return NextResponse.json({ ok: true, status: newStatus });
   } catch (e) {
-    const status = e?.status || 500;
     return NextResponse.json(
-      { ok: false, error: e?.message || "Failed to approve KYC" },
-      { status }
+      { error: e?.message || "Failed to update KYC." },
+      { status: e?.status || 500 }
     );
   }
 }
