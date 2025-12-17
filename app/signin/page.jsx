@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn, getErrorMessage } from "../../lib/api";
+import { signIn, ensureUserBootstrap, getErrorMessage } from "../../lib/api";
 import { isAppwriteConfigured } from "../../lib/appwrite";
 
 const ICON_SRC = "/icon.png";
@@ -56,6 +56,15 @@ export default function SigninPage() {
 
     try {
       const res = await signIn(email.trim(), password);
+
+      const boot = await ensureUserBootstrap().catch(() => null);
+
+// If profile says verified -> go dashboard, else go verify page
+const verified = Boolean(boot?.profile?.verificationCodeVerified);
+
+router.replace(verified ? "/overview" : "/verify-code");
+router.refresh();
+return;
 
       const fallback = "/verify-code";
       const dest =
