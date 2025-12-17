@@ -9,11 +9,12 @@ import {
   getErrorMessage,
 } from "../../lib/api";
 
-
 export default function VerifyCodePage() {
   const router = useRouter();
-  const [boot, setBoot] = useState(null);
-  const [busy, setBusy] = useState(true);
+
+  const [boot, setBoot] = useState(null); // { user, profile }
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState("");
@@ -25,7 +26,7 @@ export default function VerifyCodePage() {
     let cancelled = false;
 
     (async () => {
-      setBusy(true);
+      setLoading(true);
       setErr("");
       setMsg("");
 
@@ -38,6 +39,7 @@ export default function VerifyCodePage() {
           return;
         }
 
+        // Already verified
         if (b?.profile?.verificationCodeVerified) {
           router.replace("/dashboard");
           return;
@@ -45,10 +47,12 @@ export default function VerifyCodePage() {
 
         setBoot(b);
       } catch (e) {
-        setErr(getErrorMessage(e, "We couldn’t confirm your session. Please sign in again."));
-        router.replace("/signin");
+        if (!cancelled) {
+          setErr(getErrorMessage(e, "We couldn’t confirm your session. Please sign in again."));
+          router.replace("/signin");
+        }
       } finally {
-        if (!cancelled) setBusy(false);
+        if (!cancelled) setLoading(false);
       }
     })();
 
@@ -58,10 +62,12 @@ export default function VerifyCodePage() {
   }, [router]);
 
   const sendCode = async () => {
-    if (!boot?.user?.$id) return;
+    if (busy || !boot?.user?.$id) return;
+
     setErr("");
     setMsg("");
     setBusy(true);
+
     try {
       await createOrRefreshVerifyCode(boot.user.$id);
       setMsg("Verification code sent to your email.");
@@ -73,21 +79,14 @@ export default function VerifyCodePage() {
   };
 
   const verify = async () => {
-    if (!boot?.user?.$id) return;
+    if (busy || !boot?.user?.$id) return;
+
     setErr("");
     setMsg("");
     setBusy(true);
 
     try {
-      const res = await fetch("/api/auth/verify-code", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ userId: boot.user.$id, code }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Invalid or expired code.");
-
+      await verifySixDigitCode(boot.user.$id, code);
       setMsg("Verified. Redirecting…");
       router.replace("/dashboard");
     } catch (e) {
@@ -97,7 +96,7 @@ export default function VerifyCodePage() {
     }
   };
 
-  if (busy && !boot) return <div className="cardSub">Checking your session…</div>;
+  if (loading && !boot) return <div className="cardSub">Checking your session…</div>;
   if (!boot?.user) return <div className="cardSub">Redirecting…</div>;
 
   return (
@@ -114,8 +113,17 @@ export default function VerifyCodePage() {
             </div>
           </div>
 
-          {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
-          {msg ? <div className="flashOk" style={{ marginTop: 12 }}>{msg}</div> : null}
+          {err ? (
+            <div className="flashError" style={{ marginTop: 12 }}>
+              {err}
+            </div>
+          ) : null}
+
+          {msg ? (
+            <div className="flashOk" style={{ marginTop: 12 }}>
+              {msg}
+            </div>
+          ) : null}
 
           <div className="card" style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <button className="btnPrimary" onClick={sendCode} disabled={busy}>
@@ -123,14 +131,18 @@ export default function VerifyCodePage() {
             </button>
 
             <div>
-              <div className="cardSub" style={{ marginBottom: 6 }}>6-digit code</div>
+              <div className="cardSub" style={{ marginBottom: 6 }}>
+                6-digit code
+              </div>
               <input
                 className="input"
                 inputMode="numeric"
                 pattern="\d*"
                 maxLength={6}
                 value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onChange={(e) =>
+                  setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
                 placeholder="••••••"
               />
               <div className="cardSub" style={{ marginTop: 6 }}>
@@ -144,10 +156,15 @@ export default function VerifyCodePage() {
 
             <div className="cardSub">
               Not you?{" "}
-              <a href="/signout" style={{ color: "rgba(56,189,248,.95)" }}>
+              <a href="/signout" className="dt-link">
                 Sign out
               </a>
             </div>
+          </div>
+
+          <div className="cardSub" style={{ marginTop: 10, opacity: 0.8 }}>
+            Tip: if you don’t see the code, check Spam/Promotions and confirm your Resend sender
+            email is verified.
           </div>
         </div>
       </div>
