@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { signUp, getErrorMessage } from "../../lib/api";
 import { isAppwriteConfigured } from "../../lib/appwrite";
 
-const ICON_SRC = "/icon.png"; // /public/icon.png
+const ICON_SRC = "/icon.png";
 
 function isExistsError(e, msg) {
   return String(e?.code) === "409" || /already exists/i.test(String(msg || ""));
@@ -22,19 +22,15 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
+  const configError = !isAppwriteConfigured
+    ? "Appwrite is not configured. Set NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID."
+    : "";
+
   useEffect(() => {
     try {
       const sp = new URLSearchParams(window.location.search);
       setRef(sp.get("ref") || "");
     } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (!isAppwriteConfigured) {
-      setErr(
-        "Appwrite is not configured. Set NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID in Vercel (Production + Preview), then redeploy."
-      );
-    }
   }, []);
 
   const can = useMemo(() => {
@@ -46,12 +42,7 @@ export default function SignupPage() {
     e.preventDefault();
     if (busy) return;
 
-    if (!isAppwriteConfigured) {
-      setErr(
-        "Appwrite is not configured. Please set NEXT_PUBLIC_APPWRITE_ENDPOINT and NEXT_PUBLIC_APPWRITE_PROJECT_ID and redeploy."
-      );
-      return;
-    }
+    if (!isAppwriteConfigured) return; // configError is already visible
 
     setErr("");
     setBusy(true);
@@ -68,10 +59,8 @@ export default function SignupPage() {
     } catch (e2) {
       const msg = getErrorMessage(e2, "Unable to create account.");
 
-      // If user already exists, redirect to signin with prefilled email
       if (isExistsError(e2, msg)) {
-        const q = `?email=${encodeURIComponent(email.trim())}`;
-        router.replace(`/signin${q}`);
+        router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
         return;
       }
 
@@ -90,16 +79,12 @@ export default function SignupPage() {
       </div>
 
       <div className="relative w-full max-w-md bg-black/55 border border-yellow-500/40 rounded-2xl p-6 shadow-2xl backdrop-blur">
-        {/* Header */}
         <div className="flex items-center justify-center gap-3">
           <div className="h-11 w-11 rounded-2xl border border-yellow-500/40 bg-black/60 flex items-center justify-center overflow-hidden">
             <img src={ICON_SRC} alt="Day Trader" className="h-9 w-9 object-contain" />
           </div>
-
           <div className="text-center">
-            <div className="text-2xl font-extrabold text-yellow-400 leading-tight">
-              Day Trader
-            </div>
+            <div className="text-2xl font-extrabold text-yellow-400 leading-tight">Day Trader</div>
             <div className="text-[11px] uppercase tracking-[0.28em] text-yellow-200/70">
               Markets • Wallets • Execution
             </div>
@@ -113,7 +98,11 @@ export default function SignupPage() {
           </p>
         </div>
 
-        {err ? (
+        {configError ? (
+          <div className="mt-4 bg-red-600/15 border border-red-500/50 text-red-100 p-3 rounded-xl text-sm">
+            {configError}
+          </div>
+        ) : err ? (
           <div className="mt-4 bg-red-600/15 border border-red-500/50 text-red-100 p-3 rounded-xl text-sm">
             {err}
           </div>
@@ -130,7 +119,6 @@ export default function SignupPage() {
               className="w-full p-3 rounded-xl bg-black/40 text-white border border-yellow-500/35 focus:outline-none focus:ring-2 focus:ring-yellow-400/70"
               value={fullName}
               onChange={(ev) => setFullName(ev.target.value)}
-              placeholder="Your name"
               autoComplete="name"
               disabled={!isAppwriteConfigured}
             />
@@ -147,7 +135,6 @@ export default function SignupPage() {
               type="email"
               value={email}
               onChange={(ev) => setEmail(ev.target.value)}
-              placeholder="you@example.com"
               autoComplete="email"
               disabled={!isAppwriteConfigured}
             />
@@ -172,7 +159,7 @@ export default function SignupPage() {
           </div>
 
           <button
-            className="w-full p-3 rounded-xl bg-yellow-500 text-black font-extrabold hover:bg-yellow-400 transition shadow-[0_0_0_1px_rgba(245,158,11,.35),0_18px_40px_rgba(0,0,0,.55)] disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full p-3 rounded-xl bg-yellow-500 text-black font-extrabold hover:bg-yellow-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
             disabled={!can || busy}
             type="submit"
           >
@@ -180,17 +167,8 @@ export default function SignupPage() {
           </button>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <a
-              className="w-full p-3 rounded-xl border border-yellow-500/35 text-yellow-100 hover:bg-yellow-500/10 transition text-center font-semibold"
-              href="/signin"
-            >
+            <a className="w-full p-3 rounded-xl border border-yellow-500/35 text-yellow-100 hover:bg-yellow-500/10 transition text-center font-semibold" href="/signin">
               Sign in
-            </a>
-            <a
-              className="w-full p-3 rounded-xl border border-blue-400/25 text-slate-100 hover:bg-blue-500/10 transition text-center font-semibold"
-              href="/forgot-password"
-            >
-              Forgot password
             </a>
           </div>
         </form>
