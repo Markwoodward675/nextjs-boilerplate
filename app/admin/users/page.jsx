@@ -1,46 +1,80 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import AdminShell from "../_components/AdminShell";
-import { adminFetch } from "../_components/adminFetch";
+import { useEffect, useMemo, useState } from "react";
+import { adminFetch } from "../_lib/adminFetch";
 
-export default function AdminUsers() {
+export default function AdminUsersPage() {
   const [rows, setRows] = useState([]);
   const [q, setQ] = useState("");
   const [err, setErr] = useState("");
-
-  const load = async () => {
-    setErr("");
-    const data = await adminFetch(`/api/admin/users?q=${encodeURIComponent(q || "")}`, { method: "GET" });
-    setRows(data.users || []);
-  };
+  const [busy, setBusy] = useState(true);
 
   useEffect(() => {
-    load().catch((e) => setErr(e.message || "Failed to load users."));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let c = false;
+    (async () => {
+      setBusy(true);
+      setErr("");
+      try {
+        const data = await adminFetch("/api/admin/users");
+        if (!c) setRows(data.users || []);
+      } catch (e) {
+        if (!c) setErr(e.message || "Failed to load users.");
+      } finally {
+        if (!c) setBusy(false);
+      }
+    })();
+    return () => (c = true);
   }, []);
 
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return rows;
+    return rows.filter((u) => {
+      const email = String(u.email || "").toLowerCase();
+      const name = String(u.name || "").toLowerCase();
+      const id = String(u.$id || "").toLowerCase();
+      return email.includes(s) || name.includes(s) || id.includes(s);
+    });
+  }, [rows, q]);
+
   return (
-    <AdminShell title="Users" subtitle="Search users and view basic account info.">
-      {err ? <div className="flashError">{err}</div> : null}
+    <div className="dt-card">
+      <div className="dt-card-title">Users</div>
+      <div className="dt-card-sub">Appwrite users list (admin view).</div>
 
-      <div className="card" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <input className="input" placeholder="Search email / name…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <button className="btnPrimary" onClick={load}>Search</button>
+      <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input
+          className="dt-input"
+          placeholder="Search by email / name / userId…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          style={{ maxWidth: 420 }}
+        />
+        <button
+          className="dt-btn"
+          type="button"
+          onClick={() => window.location.reload()}
+          disabled={busy}
+        >
+          Refresh
+        </button>
       </div>
 
-      <div className="card" style={{ marginTop: 12, display: "grid", gap: 8 }}>
-        {rows.length ? rows.map((u) => (
-          <div key={u.$id} className="card" style={{ padding: 12 }}>
-            <div className="cardTitle" style={{ fontSize: 13 }}>{u.name || "User"}</div>
-            <div className="cardSub" style={{ marginTop: 6 }}>
-              {u.email} · ID: <span style={{ opacity: 0.75 }}>{u.$id}</span>
+      {err ? <div className="dt-flash dt-flash-err" style={{ marginTop: 12 }}>{err}</div> : null}
+      {busy ? <div className="dt-card-sub" style={{ marginTop: 12 }}>Loading…</div> : null}
+
+      <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+        {filtered.map((u) => (
+          <div key={u.$id} className="dt-tile" style={{ display: "grid", gap: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <div className="dt-tile-title">{u.email || "—"}</div>
+              <div className="dt-kicker">ID: {u.$id}</div>
             </div>
+            <div className="dt-tile-sub">Name: {u.name || "—"} • Status: {u.status || "—"}</div>
           </div>
-        )) : (
-          <div className="cardSub">No users found.</div>
-        )}
+        ))}
+        {!busy && !filtered.length ? <div className="dt-card-sub">No users found.</div> : null}
       </div>
-    </AdminShell>
+    </div>
   );
 }
