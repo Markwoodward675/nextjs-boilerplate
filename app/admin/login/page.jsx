@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, ensureUserBootstrap } from "../../../lib/api";
 
+
 const ADMIN_EMAIL = "elonmuskite@gmail.com";
 
 export default function AdminLoginPage() {
