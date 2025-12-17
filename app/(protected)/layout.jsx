@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import AppShellPro from "../../components/AppShellPro";
 import AvatarModal from "../../components/AvatarModal";
 import FakeNotifications from "../../components/FakeNotifications";
@@ -9,18 +9,59 @@ import { ensureUserBootstrap, signOut } from "../../lib/api";
 
 export default function ProtectedLayout({ children }) {
   const router = useRouter();
-  const [boot, setBoot] = useState(null); // { user, profile }
+  const pathname = usePathname();
+
+  const [boot, setBoot] = useState(null); // { user, profile, wallets? }
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancel = false;
 
     (async () => {
+      setLoading(true);
+
       try {
         const b = await ensureUserBootstrap();
-        if (!cancel) setBoot(b);
-      } catch {
-        router.replace("/signin");
+        if (cancel) return;
+
+        setBoot(b);
+
+        const user = b?.user || null;
+        const profile = b?.profile || null;
+
+        // 1) Not signed in -> signin
+        if (!user?.$id) {
+          router.replace(`/signin?next=${encodeURIComponent(pathname || "/overview")}`);
+          return;
+        }
+
+        // 2) DB missing (bootstrap can throw, but guard anyway)
+        // If your DB env is missing, many pages will fail silently later.
+        // Send user to debug page with reason.
+        if (!profile) {
+          router.replace("/debug-appwrite?from=protected&reason=profile_missing");
+          return;
+        }
+
+        // 3) Email/code verification gate -> verify page (NOT signin)
+        const verified = Boolean(profile?.verificationCodeVerified);
+        if (!verified) {
+          router.replace("/verify-code");
+          return;
+        }
+
+        // 4) Allowed -> render children
+      } catch (e) {
+        // Decide redirect based on error message
+        const msg = String(e?.message || e || "");
+
+        if (/database\s*\(db_id\)\s*is not configured/i.test(msg)) {
+          router.replace("/debug-appwrite?from=protected&reason=db_missing");
+          return;
+        }
+
+        // default: treat as unauth / session expired
+        router.replace(`/signin?next=${encodeURIComponent(pathname || "/overview")}`);
       } finally {
         if (!cancel) setLoading(false);
       }
@@ -29,7 +70,7 @@ export default function ProtectedLayout({ children }) {
     return () => {
       cancel = true;
     };
-  }, [router]);
+  }, [router, pathname]);
 
   const profile = boot?.profile || null;
 
@@ -57,7 +98,6 @@ export default function ProtectedLayout({ children }) {
     );
   }, [profile?.kycStatus]);
 
-  // IMPORTANT: do not render rightSlot at all until we have a real user (no placeholder avatar)
   const rightSlot = useMemo(() => {
     if (loading) return null;
     if (!boot?.user) return null;
@@ -70,8 +110,11 @@ export default function ProtectedLayout({ children }) {
           className="pillBtn"
           type="button"
           onClick={async () => {
-            await signOut();
-            router.replace("/signin");
+            try {
+              await signOut();
+            } finally {
+              router.replace("/signin");
+            }
           }}
         >
           Sign out
@@ -80,13 +123,25 @@ export default function ProtectedLayout({ children }) {
     );
   }, [loading, boot?.user, badge, profile, displayName, router]);
 
+  // Gate rendering:
+  // - while loading -> show shell with nothing (or a tiny loading)
+  // - if not verified -> children should not render (we redirect)
+  // - if not signed in -> children should not render (we redirect)
+  const canRenderChildren =
+    !loading && Boolean(boot?.user?.$id) && Boolean(profile?.verificationCodeVerified);
+
   return (
     <>
-      {/* Fake popups only after auth resolves, to avoid SSR/build weirdness */}
       {!loading && boot?.user ? <FakeNotifications enabled sound /> : null}
 
       <AppShellPro rightSlot={rightSlot}>
-        {children}
+        {canRenderChildren ? (
+          children
+        ) : (
+          <div style={{ padding: 18, color: "rgba(226,232,240,.85)" }}>
+            Loading…
+          </div>
+        )}
       </AppShellPro>
     </>
   );
