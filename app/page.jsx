@@ -1,7 +1,12 @@
 // app/page.jsx
+"use client";
+
 import Link from "next/link";
+import { useMemo } from "react";
 
 export default function HomePage() {
+  const year = useMemo(() => new Date().getFullYear(), []);
+
   return (
     <main className="dt-shell dt-landing">
       <section className="dt-hero">
@@ -84,9 +89,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="dt-footer">
-        © {new Date().getFullYear()} Day Trader
-      </footer>
+      <footer className="dt-footer">© {year} Day Trader</footer>
     </main>
   );
 }
