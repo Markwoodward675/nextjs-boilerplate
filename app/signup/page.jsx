@@ -40,8 +40,8 @@ export default function SignupPage() {
     setBusy(true);
 
     try {
-      await signUp({ fullName: fullName.trim(), email: email.trim(), password, referralId: ref || "" });
-      router.replace("/verify-code");
+      await signUp({ fullName, email, password });
+router.replace("/verify-code");
     } catch (e2) {
       setErr(getErrorMessage(e2, "Unable to create account."));
     } finally {
