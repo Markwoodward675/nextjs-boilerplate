@@ -129,7 +129,7 @@ export default function DebugAppwritePage() {
         await account.deleteSession("current");
       } catch {}
 
-      await account.createEmailPasswordSession(email.trim(), password);
+      await createEmailSessionCompat(email, password);
       addLine("✅ Sign in success: session created.");
       await runAccountGet();
       await runCreateJwt();
