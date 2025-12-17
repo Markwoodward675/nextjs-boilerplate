@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ensureUserBootstrap,
@@ -13,12 +13,16 @@ export default function VerifyCodePage() {
   const router = useRouter();
 
   const [boot, setBoot] = useState(null); // { user, profile }
-  const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
+  const sentOnceRef = useRef(false);
 
   const canVerify = useMemo(() => /^\d{6}$/.test(code), [code]);
 
@@ -34,22 +38,47 @@ export default function VerifyCodePage() {
         const b = await ensureUserBootstrap();
         if (cancelled) return;
 
-        if (!b?.user) {
-          router.replace("/signin");
+        if (!b?.user?.$id) {
+          router.replace("/signin?next=/verify-code");
           return;
         }
 
-        // Already verified
+        // Already verified -> go to app
         if (b?.profile?.verificationCodeVerified) {
-          router.replace("/dashboard");
+          router.replace("/overview");
           return;
         }
 
         setBoot(b);
+
+        // Auto-send once when page loads (only once per visit)
+        if (!sentOnceRef.current) {
+          sentOnceRef.current = true;
+          try {
+            setSending(true);
+            await createOrRefreshVerifyCode(b.user.$id);
+            if (!cancelled) setMsg("Verification code sent to your email.");
+          } catch (e) {
+            if (!cancelled) setErr(getErrorMessage(e, "Unable to send verification code."));
+          } finally {
+            if (!cancelled) setSending(false);
+          }
+        }
       } catch (e) {
+        const message = getErrorMessage(
+          e,
+          "We couldn’t confirm your session. Please sign in again."
+        );
+
         if (!cancelled) {
-          setErr(getErrorMessage(e, "We couldn’t confirm your session. Please sign in again."));
-          router.replace("/signin");
+          setErr(message);
+
+          // If DB missing, go debug (prevents loops)
+          if (/database\s*\(db_id\)\s*is not configured/i.test(message)) {
+            router.replace("/debug-appwrite?from=verify-code&reason=db_missing");
+          } else {
+            router.replace("/signin?next=/verify-code");
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -62,11 +91,11 @@ export default function VerifyCodePage() {
   }, [router]);
 
   const sendCode = async () => {
-    if (busy || !boot?.user?.$id) return;
+    if (!boot?.user?.$id || sending || verifying) return;
 
     setErr("");
     setMsg("");
-    setBusy(true);
+    setSending(true);
 
     try {
       await createOrRefreshVerifyCode(boot.user.$id);
@@ -74,25 +103,27 @@ export default function VerifyCodePage() {
     } catch (e) {
       setErr(getErrorMessage(e, "Unable to send verification code."));
     } finally {
-      setBusy(false);
+      setSending(false);
     }
   };
 
   const verify = async () => {
-    if (busy || !boot?.user?.$id) return;
+    if (!boot?.user?.$id || verifying || sending) return;
+    if (!canVerify) return;
 
     setErr("");
     setMsg("");
-    setBusy(true);
+    setVerifying(true);
 
     try {
       await verifySixDigitCode(boot.user.$id, code);
       setMsg("Verified. Redirecting…");
-      router.replace("/dashboard");
+      router.replace("/overview");
+      router.refresh();
     } catch (e) {
       setErr(getErrorMessage(e, "Invalid or expired code."));
     } finally {
-      setBusy(false);
+      setVerifying(false);
     }
   };
 
@@ -106,7 +137,7 @@ export default function VerifyCodePage() {
           <div className="card">
             <div className="cardTitle">Secure verification required</div>
             <div className="cardSub" style={{ marginTop: 6 }}>
-              Enter the 6-digit code sent to your email to unlock the dashboard.
+              Enter the 6-digit code sent to your email to unlock the app.
             </div>
             <div className="cardSub" style={{ marginTop: 10 }}>
               Signed in as <b>{boot.user.email}</b>
@@ -126,32 +157,39 @@ export default function VerifyCodePage() {
           ) : null}
 
           <div className="card" style={{ marginTop: 12, display: "grid", gap: 10 }}>
-            <button className="btnPrimary" onClick={sendCode} disabled={busy}>
-              {busy ? "Working…" : "Send verification code to my email"}
+            <button className="btnPrimary" onClick={sendCode} disabled={sending || verifying}>
+              {sending ? "Sending…" : "Send verification code to my email"}
             </button>
 
             <div>
-              <div className="cardSub" style={{ marginBottom: 6 }}>
+              <label htmlFor="verify-code" className="cardSub" style={{ marginBottom: 6, display: "block" }}>
                 6-digit code
-              </div>
+              </label>
+
               <input
+                id="verify-code"
+                name="verificationCode"
                 className="input"
                 inputMode="numeric"
                 pattern="\d*"
                 maxLength={6}
                 value={code}
-                onChange={(e) =>
-                  setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-                }
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="••••••"
+                autoComplete="one-time-code"
               />
+
               <div className="cardSub" style={{ marginTop: 6 }}>
                 The code is sent to your registered email address.
               </div>
             </div>
 
-            <button className="btnPrimary" onClick={verify} disabled={!canVerify || busy}>
-              {busy ? "Verifying…" : "Verify & continue"}
+            <button
+              className="btnPrimary"
+              onClick={verify}
+              disabled={!canVerify || sending || verifying}
+            >
+              {verifying ? "Verifying…" : "Verify & continue"}
             </button>
 
             <div className="cardSub">
@@ -163,8 +201,7 @@ export default function VerifyCodePage() {
           </div>
 
           <div className="cardSub" style={{ marginTop: 10, opacity: 0.8 }}>
-            Tip: if you don’t see the code, check Spam/Promotions and confirm your Resend sender
-            email is verified.
+            Tip: if you don’t see the code, check Spam/Promotions and confirm your sender email is verified.
           </div>
         </div>
       </div>
