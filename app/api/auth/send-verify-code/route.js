@@ -5,7 +5,7 @@ import React from "react";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import VerifyCodeEmail from "../../../../components/VerifyCodeEmail";
-import { getAdminClient } from "../../../../lib/appwriteAdmin";
+import { getAdmin } from "../../../../lib/appwriteAdmin";
 
 export async function POST(req) {
   try {
@@ -26,11 +26,9 @@ export async function POST(req) {
     }
 
     const resend = new Resend(RESEND_API_KEY);
+    const { db, users, DATABASE_ID } = getAdmin();
 
-    // ✅ IMPORTANT: your helper returns DATABASE_ID (not DB_ID)
-    const { db, users, DATABASE_ID } = getAdminClient();
-
-    // Always fetch real email from Appwrite
+    // Fetch real email from Appwrite (prevents spoofing)
     const u = await users.get(userId);
     const email = u?.email;
     if (!email) {
@@ -63,25 +61,18 @@ export async function POST(req) {
     }
 
     const { data, error } = await resend.emails.send({
-      from, // must be verified sender/domain in Resend
+      from,
       to: [email],
       subject: "Your verification code",
-      // ✅ Build-safe React element (no JSX needed)
       react: React.createElement(VerifyCodeEmail, { brand: "Day Trader", code, email }),
     });
 
     if (error) {
-      return NextResponse.json(
-        { ok: false, error: error?.message || "Resend failed." },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: error?.message || "Resend failed." }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, data }, { status: 200 });
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Unable to send code." },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: e?.message || "Unable to send code." }, { status: 500 });
   }
 }
