@@ -1,19 +1,12 @@
-"use client";
-
-import Image from "next/image";
-import { useState } from "react";
-
-export default function BrandLogo({ size = 36 }) {
-  const [src, setSrc] = useState("/icon.png");
-
+// components/BrandLogo.jsx
+export default function BrandLogo({ size = 28 }) {
   return (
-    <Image
-      src={src}
+    <img
+      src="/icon.png"
       alt="Day Trader"
       width={size}
       height={size}
-      priority
-      onError={() => setSrc("/favicon-32x32.png")}
+      style={{ display: "block" }}
     />
   );
 }
