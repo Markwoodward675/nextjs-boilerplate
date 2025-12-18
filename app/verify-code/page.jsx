@@ -73,9 +73,16 @@ export default function VerifyCodePage() {
         if (!cancelled) {
           setErr(message);
 
-          // If DB missing, go debug (prevents loops)
+          // ✅ IMPORTANT CHANGE:
+          // Do NOT auto-redirect to /debug-appwrite. It causes a trap when caches/env drift.
+          // Instead: show the message and let the user retry / sign out / go sign in again.
+          //
+          // If DB really is missing, the error is visible here and you can fix env + redeploy.
+          // If it's a transient/cached mismatch, a hard refresh or redeploy fixes it.
           if (/database\s*\(db_id\)\s*is not configured/i.test(message)) {
-            router.replace("/debug-appwrite?from=verify-code&reason=db_missing");
+            // Stay on this page so the user sees the error.
+            // Optional: you can show a helpful tip.
+            setMsg("Tip: If you just updated Vercel env vars, redeploy with 'clear build cache'.");
           } else {
             router.replace("/signin?next=/verify-code");
           }
@@ -162,7 +169,11 @@ export default function VerifyCodePage() {
             </button>
 
             <div>
-              <label htmlFor="verify-code" className="cardSub" style={{ marginBottom: 6, display: "block" }}>
+              <label
+                htmlFor="verify-code"
+                className="cardSub"
+                style={{ marginBottom: 6, display: "block" }}
+              >
                 6-digit code
               </label>
 
