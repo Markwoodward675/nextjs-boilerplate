@@ -1,32 +1,42 @@
+// app/api/auth/send-verify-code/route.js
 import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { getAdminClient } from "../../../../lib/appwriteAdmin";
 
-function htmlEmail({ brand, code, email }) {
-  return `
-  <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial; background:#0b0b0f; padding:24px;">
-    <div style="max-width:560px;margin:0 auto;background:#111827;border:1px solid rgba(245,158,11,.35);border-radius:16px;padding:20px;">
-      <div style="color:#fbbf24;font-weight:800;font-size:18px;">${brand}</div>
-      <div style="color:rgba(226,232,240,.85);margin-top:8px;font-size:13px;">
-        Use this 6-digit code to verify your account for <b>${email}</b>.
-      </div>
-      <div style="margin-top:16px; padding:14px; background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.25); border-radius:12px;">
-        <div style="letter-spacing:6px;font-size:28px;font-weight:900;color:#fbbf24;text-align:center;">${code}</div>
-      </div>
-      <div style="color:rgba(226,232,240,.7);margin-top:14px;font-size:12px;">
-        If you didn’t request this, you can ignore this email.
+function emailHtml({ brand, code, email }) {
+  // Plain HTML string (no React / no react-dom/server)
+  return `<!doctype html>
+<html>
+  <body style="margin:0;background:#050814;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto">
+    <div style="max-width:560px;margin:0 auto;padding:24px">
+      <div style="border:1px solid rgba(255,215,0,.25);border-radius:16px;background:rgba(0,0,0,.35);padding:20px;color:#e5e7eb">
+        <div style="font-weight:800;font-size:20px;color:#fbbf24">${brand}</div>
+        <div style="margin-top:6px;color:rgba(229,231,235,.85)">Secure verification code</div>
+        <div style="margin-top:16px;padding:14px;border-radius:14px;background:rgba(59,130,246,.10);border:1px solid rgba(59,130,246,.25)">
+          <div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:rgba(229,231,235,.7)">Your code</div>
+          <div style="margin-top:6px;font-size:34px;font-weight:900;letter-spacing:.28em;color:#fde68a">${code}</div>
+        </div>
+        <div style="margin-top:14px;color:rgba(229,231,235,.75);font-size:13px">
+          Sent to: <b style="color:#fff">${email}</b>
+        </div>
+        <div style="margin-top:10px;color:rgba(229,231,235,.60);font-size:12px">
+          If you didn’t request this, you can ignore this email.
+        </div>
       </div>
     </div>
-  </div>`;
+  </body>
+</html>`;
 }
 
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
     const userId = String(body?.userId || "").trim();
-    if (!userId) return NextResponse.json({ ok: false, error: "Missing userId." }, { status: 400 });
+    if (!userId) {
+      return NextResponse.json({ ok: false, error: "Missing userId." }, { status: 400 });
+    }
 
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
     const from = process.env.VERIFY_FROM_EMAIL;
@@ -40,23 +50,33 @@ export async function POST(req) {
 
     const { db, users, DATABASE_ID } = getAdminClient();
 
+    // Fetch real email from Appwrite Users
     const u = await users.get(userId);
     const email = u?.email;
-    if (!email) return NextResponse.json({ ok: false, error: "User email not found." }, { status: 400 });
+    if (!email) {
+      return NextResponse.json({ ok: false, error: "User email not found." }, { status: 400 });
+    }
 
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const now = new Date().toISOString();
 
-    const VERIFY_COL = process.env.APPWRITE_VERIFY_CODES_COLLECTION_ID || "verify_codes";
+    const VERIFY_COL =
+      process.env.APPWRITE_VERIFY_CODES_COLLECTION_ID ||
+      process.env.NEXT_PUBLIC_APPWRITE_VERIFY_CODES_COLLECTION_ID ||
+      "verify_codes";
 
+    // Verify Codes schema: { userId, code, used, createdAt, usedAt }
     const payload = { userId, code, used: false, createdAt: now, usedAt: "" };
 
+    // docId = userId
     try {
       await db.getDocument(DATABASE_ID, VERIFY_COL, userId);
       await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, payload);
     } catch {
       await db.createDocument(DATABASE_ID, VERIFY_COL, userId, payload);
     }
+
+    const html = emailHtml({ brand: "Day Trader", code, email });
 
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -68,15 +88,23 @@ export async function POST(req) {
         from,
         to: [email],
         subject: "Your verification code",
-        html: htmlEmail({ brand: "Day Trader", code, email }),
+        html,
       }),
     });
 
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) return NextResponse.json({ ok: false, error: data?.message || "Resend failed." }, { status: 500 });
+    if (!r.ok) {
+      return NextResponse.json(
+        { ok: false, error: data?.message || "Resend failed." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Unable to send code." }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Unable to send code." },
+      { status: 500 }
+    );
   }
 }
