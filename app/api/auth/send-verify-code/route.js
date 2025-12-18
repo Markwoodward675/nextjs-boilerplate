@@ -1,33 +1,16 @@
-// app/api/auth/send-verify-code/route.js
 import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { getAdminClient } from "../../../../lib/appwriteAdmin";
 
-function emailHtml({ brand, code, email }) {
-  // Plain HTML string (no React / no react-dom/server)
-  return `<!doctype html>
-<html>
-  <body style="margin:0;background:#050814;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto">
-    <div style="max-width:560px;margin:0 auto;padding:24px">
-      <div style="border:1px solid rgba(255,215,0,.25);border-radius:16px;background:rgba(0,0,0,.35);padding:20px;color:#e5e7eb">
-        <div style="font-weight:800;font-size:20px;color:#fbbf24">${brand}</div>
-        <div style="margin-top:6px;color:rgba(229,231,235,.85)">Secure verification code</div>
-        <div style="margin-top:16px;padding:14px;border-radius:14px;background:rgba(59,130,246,.10);border:1px solid rgba(59,130,246,.25)">
-          <div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:rgba(229,231,235,.7)">Your code</div>
-          <div style="margin-top:6px;font-size:34px;font-weight:900;letter-spacing:.28em;color:#fde68a">${code}</div>
-        </div>
-        <div style="margin-top:14px;color:rgba(229,231,235,.75);font-size:13px">
-          Sent to: <b style="color:#fff">${email}</b>
-        </div>
-        <div style="margin-top:10px;color:rgba(229,231,235,.60);font-size:12px">
-          If you didn’t request this, you can ignore this email.
-        </div>
-      </div>
-    </div>
-  </body>
-</html>`;
+function escapeHtml(s) {
+  return String(s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 export async function POST(req) {
@@ -50,7 +33,6 @@ export async function POST(req) {
 
     const { db, users, DATABASE_ID } = getAdminClient();
 
-    // Fetch real email from Appwrite Users
     const u = await users.get(userId);
     const email = u?.email;
     if (!email) {
@@ -60,15 +42,11 @@ export async function POST(req) {
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const now = new Date().toISOString();
 
-    const VERIFY_COL =
-      process.env.APPWRITE_VERIFY_CODES_COLLECTION_ID ||
-      process.env.NEXT_PUBLIC_APPWRITE_VERIFY_CODES_COLLECTION_ID ||
-      "verify_codes";
-
-    // Verify Codes schema: { userId, code, used, createdAt, usedAt }
-    const payload = { userId, code, used: false, createdAt: now, usedAt: "" };
+    const VERIFY_COL = process.env.APPWRITE_VERIFY_CODES_COLLECTION_ID || "verify_codes";
 
     // docId = userId
+    const payload = { userId, code, used: false, createdAt: now, usedAt: "" };
+
     try {
       await db.getDocument(DATABASE_ID, VERIFY_COL, userId);
       await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, payload);
@@ -76,7 +54,21 @@ export async function POST(req) {
       await db.createDocument(DATABASE_ID, VERIFY_COL, userId, payload);
     }
 
-    const html = emailHtml({ brand: "Day Trader", code, email });
+    const html = `
+      <div style="font-family:Inter,system-ui,Arial;padding:20px;background:#0b0b0f;color:#fff;border-radius:14px">
+        <div style="font-size:18px;font-weight:800;color:#fbbf24">Day Trader</div>
+        <div style="opacity:.85;margin-top:6px">Secure verification code</div>
+        <div style="margin-top:14px;font-size:34px;letter-spacing:6px;font-weight:900;color:#fbbf24">
+          ${escapeHtml(code)}
+        </div>
+        <div style="opacity:.75;margin-top:10px;font-size:13px">
+          This code was requested for <b>${escapeHtml(email)}</b>
+        </div>
+        <div style="opacity:.6;margin-top:14px;font-size:12px">
+          If you didn’t request this, you can ignore this email.
+        </div>
+      </div>
+    `;
 
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -102,9 +94,6 @@ export async function POST(req) {
 
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Unable to send code." },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: e?.message || "Unable to send code." }, { status: 500 });
   }
 }
