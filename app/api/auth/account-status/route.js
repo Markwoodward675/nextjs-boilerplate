@@ -4,34 +4,38 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { Query } from "node-appwrite";
-import { getAdmin } from "../../../../lib/appwriteAdmin";
+import { getAdminClient } from "../../../../lib/appwriteAdmin";
 
-export async function GET(req) {
+export async function POST(req) {
   try {
-    const { searchParams } = new URL(req.url);
-    const email = String(searchParams.get("email") || "").trim().toLowerCase();
-    if (!email) return NextResponse.json({ ok: false, error: "Missing email." }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const email = String(body?.email || "").trim().toLowerCase();
+    if (!email) return NextResponse.json({ error: "Missing email." }, { status: 400 });
 
-    const { db, DATABASE_ID } = getAdmin();
-    const PROFILES_COL = process.env.APPWRITE_PROFILES_COLLECTION_ID || "profiles";
+    const { db, users, DATABASE_ID } = getAdminClient();
 
-    const r = await db.listDocuments(DATABASE_ID, PROFILES_COL, [
-      Query.equal("email", email),
-      Query.limit(1),
-    ]);
+    // Find user by email (admin)
+    const found = await users.list([Query.equal("email", email), Query.limit(1)]);
+    const u = found?.users?.[0];
+    if (!u?.$id) {
+      return NextResponse.json({ exists: false, verified: false }, { status: 200 });
+    }
 
-    const p = r?.documents?.[0] || null;
+    const userId = u.$id;
 
-    return NextResponse.json(
-      {
-        ok: true,
-        exists: !!p,
-        verified: !!p?.verificationCodeVerified,
-        userId: p?.userId || p?.$id || null,
-      },
-      { status: 200 }
-    );
+    const USER_PROFILE_COL = process.env.APPWRITE_USERS_COLLECTION_ID || "user_profile";
+
+    // Check user_profile doc by docId=userId first
+    let verified = false;
+    try {
+      const prof = await db.getDocument(DATABASE_ID, USER_PROFILE_COL, userId);
+      verified = Boolean(prof?.verificationCodeVerified);
+    } catch {
+      verified = false;
+    }
+
+    return NextResponse.json({ exists: true, userId, verified }, { status: 200 });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Status failed." }, { status: 500 });
+    return NextResponse.json({ error: e?.message || "Unable to check status." }, { status: 500 });
   }
 }
