@@ -1,20 +1,17 @@
 // app/signin/page.jsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  signIn,
-  ensureUserBootstrap,
-  getErrorMessage,
-} from "../../lib/api";
+import { signIn, ensureUserBootstrap, getErrorMessage } from "../../lib/api";
 
-export default function SignInPage() {
+function SignInInner() {
   const router = useRouter();
   const sp = useSearchParams();
 
   const nextParam = sp?.get("next") || "";
+
   const nextUrl = useMemo(() => {
     // allow only internal paths
     if (!nextParam) return "";
@@ -51,7 +48,6 @@ export default function SignInPage() {
       try {
         boot = await ensureUserBootstrap();
       } catch (e2) {
-        // Show real reason inline and stop
         setErr(getErrorMessage(e2, "Signed in, but we couldn’t load your account data yet."));
         setBusy(false);
         return;
@@ -60,8 +56,8 @@ export default function SignInPage() {
       const verified = Boolean(boot?.profile?.verificationCodeVerified);
 
       // 3) Route:
-      // - verified -> next (if provided) else /overview
       // - not verified -> /verify-code
+      // - verified -> next (if provided) else /overview
       if (!verified) {
         router.replace("/verify-code");
         router.refresh();
@@ -103,9 +99,17 @@ export default function SignInPage() {
             </div>
           ) : null}
 
-          <form className="card" onSubmit={onSubmit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
+          <form
+            className="card"
+            onSubmit={onSubmit}
+            style={{ marginTop: 12, display: "grid", gap: 10 }}
+          >
             <div>
-              <label htmlFor="signin-email" className="cardSub" style={{ display: "block", marginBottom: 6 }}>
+              <label
+                htmlFor="signin-email"
+                className="cardSub"
+                style={{ display: "block", marginBottom: 6 }}
+              >
                 Email
               </label>
               <input
@@ -122,7 +126,11 @@ export default function SignInPage() {
             </div>
 
             <div>
-              <label htmlFor="signin-password" className="cardSub" style={{ display: "block", marginBottom: 6 }}>
+              <label
+                htmlFor="signin-password"
+                className="cardSub"
+                style={{ display: "block", marginBottom: 6 }}
+              >
                 Password
               </label>
               <input
@@ -154,11 +162,20 @@ export default function SignInPage() {
           </form>
 
           <div className="cardSub" style={{ marginTop: 10, opacity: 0.8 }}>
-            If sign-in succeeds but your account data won’t load, it’s usually a permissions or collection ID issue
-            (profiles/wallets). The exact error will show above.
+            If sign-in succeeds but your account data won’t load, it’s usually a permissions or
+            collection ID issue (profiles/wallets). The exact error will show above.
           </div>
         </div>
       </section>
     </main>
+  );
+}
+
+export default function SignInPage() {
+  // ✅ Fixes Next.js build error: useSearchParams must be inside Suspense
+  return (
+    <Suspense fallback={<div className="cardSub">Loading…</div>}>
+      <SignInInner />
+    </Suspense>
   );
 }
