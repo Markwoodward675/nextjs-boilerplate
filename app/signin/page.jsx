@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, getErrorMessage } from "../../lib/api";
-
-const ICON_SRC = "/icon.png";
 
 export default function SigninPage() {
   const router = useRouter();
@@ -14,15 +12,6 @@ export default function SigninPage() {
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-
-  useEffect(() => {
-    // Optional: prefill email from ?email=...
-    try {
-      const sp = new URLSearchParams(window.location.search);
-      const e = sp.get("email");
-      if (e) setEmail(e);
-    } catch {}
-  }, []);
 
   const can = useMemo(() => email.trim() && password, [email, password]);
 
@@ -44,74 +33,77 @@ export default function SigninPage() {
   };
 
   return (
-    <div className="dt-auth-bg">
-      <div className="dt-auth-card">
-        {/* Brand */}
-        <div className="dt-auth-brand">
-          <img
-            src={ICON_SRC}
-            alt="Day Trader"
-            className="dt-auth-icon"
-            draggable={false}
-          />
-          <div className="dt-auth-brandText">
-            <div className="dt-auth-title">Day Trader</div>
-            <div className="dt-auth-sub">Markets • Wallets • Execution</div>
+    <div className="dt-shell" style={{ paddingTop: 28 }}>
+      <div className="contentCard">
+        <div className="contentInner">
+          {/* Brand header */}
+          <div className="card" style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div
+              style={{
+                height: 44,
+                width: 44,
+                borderRadius: 14,
+                border: "1px solid rgba(245,158,11,.55)",
+                background: "rgba(0,0,0,.35)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+              }}
+            >
+              <img src="/icon.png" alt="Day Trader" style={{ height: 34, width: 34, borderRadius: 10 }} />
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <div className="cardTitle" style={{ marginBottom: 2 }}>Day Trader</div>
+              <div className="cardSub">Markets • Wallets • Execution</div>
+            </div>
           </div>
+
+          <div className="card" style={{ marginTop: 12 }}>
+            <div className="cardTitle">Sign in</div>
+            <div className="cardSub" style={{ marginTop: 6 }}>
+              Secure access to your dashboard.
+            </div>
+          </div>
+
+          {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
+
+          <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
+            <div>
+              <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
+              <input
+                className="input"
+                type="email"
+                value={email}
+                onChange={(x) => setEmail(x.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+              />
+            </div>
+
+            <div>
+              <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
+              <input
+                className="input"
+                type="password"
+                value={password}
+                onChange={(x) => setPassword(x.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+            </div>
+
+            <button className="btnPrimary" disabled={!can || busy} type="submit">
+              {busy ? "Signing in…" : "Sign in"}
+            </button>
+
+            <div className="card" style={{ display: "grid", gap: 8 }}>
+              <a className="pillBtn" href="/signup">Create account</a>
+              <a className="pillBtn" href="/forgot-password">Forgot password</a>
+            </div>
+          </form>
         </div>
-
-        <div className="dt-auth-head">
-          <div className="dt-auth-h1">Sign in</div>
-          <div className="dt-auth-p">
-            Secure access to your dashboard.
-          </div>
-        </div>
-
-        {err ? <div className="dt-auth-error">{err}</div> : null}
-
-        <form onSubmit={submit} className="dt-auth-form">
-          <div>
-            <label className="dt-auth-label">Email</label>
-            <input
-              className="dt-auth-input"
-              type="email"
-              value={email}
-              onChange={(x) => setEmail(x.target.value)}
-              placeholder="you@example.com"
-              autoComplete="email"
-              spellCheck={false}
-            />
-          </div>
-
-          <div>
-            <label className="dt-auth-label">Password</label>
-            <input
-              className="dt-auth-input"
-              type="password"
-              value={password}
-              onChange={(x) => setPassword(x.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-            />
-          </div>
-
-          <button
-            className="dt-auth-btn dt-auth-btn-primary"
-            disabled={!can || busy}
-            type="submit"
-          >
-            {busy ? "Signing in…" : "Sign in"}
-          </button>
-
-          <div className="dt-auth-actions">
-            <a className="dt-auth-btn dt-auth-btn-ghost" href="/signup">
-              Create account
-            </a>
-            <a className="dt-auth-btn dt-auth-btn-ghost" href="/forgot-password">
-              Forgot password
-            </a>
-          </div>
-        </form>
       </div>
     </div>
   );
