@@ -2,18 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  signUp,
-  signIn,
-  signOut,
-  ensureUserBootstrap,
-  getErrorMessage,
-} from "../../lib/api";
+import { signUp, getErrorMessage } from "../../lib/api";
 
 export default function SignupPage() {
   const router = useRouter();
-
   const [ref, setRef] = useState("");
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,7 +16,7 @@ export default function SignupPage() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    // build-safe query parsing (no useSearchParams needed)
+    // build-safe query parsing
     try {
       const sp = new URLSearchParams(window.location.search);
       setRef(sp.get("ref") || "");
@@ -31,36 +25,7 @@ export default function SignupPage() {
     }
   }, []);
 
-  const can = useMemo(() => {
-    return email.trim() && fullName.trim() && password && password.length >= 8;
-  }, [email, fullName, password]);
-
-  async function handleExistingAccount(eMsg) {
-    const e = email.trim().toLowerCase();
-
-    // Best-case UX: if the password they typed is correct, sign in and detect verified.
-    try {
-      await signIn(e, password);
-      const boot = await ensureUserBootstrap().catch(() => null);
-
-      if (boot?.profile?.verificationCodeVerified) {
-        // Verified user -> send to sign in page, and end session per your rule
-        await signOut();
-        router.replace(`/signin?email=${encodeURIComponent(e)}`);
-        return;
-      }
-
-      // Exists but not verified -> go verify
-      router.replace("/verify-code");
-      return;
-    } catch {
-      // Wrong password or cannot sign in; we can't reliably know verified status
-    }
-
-    // Fallback:
-    // send them to sign in; if they truly exist and aren’t verified, they can sign in then verify.
-    router.replace(`/signin?email=${encodeURIComponent(e)}`);
-  }
+  const can = useMemo(() => email.trim() && fullName.trim() && password.length >= 8, [email, fullName, password]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -68,25 +33,23 @@ export default function SignupPage() {
 
     setErr("");
     setBusy(true);
-
     try {
-      await signUp({
-        fullName,
-        email: email.trim(),
-        password,
-        referralId: ref || "",
-      });
-      router.replace("/verify-code");
-    } catch (e2) {
-      const msg = getErrorMessage(e2, "Unable to create account.");
+      const res = await signUp({ fullName, email: email.trim(), password, referralId: ref });
 
-      // Appwrite conflict (existing user)
-      if (/already exists/i.test(msg) || String(e2?.code) === "409") {
-        await handleExistingAccount(msg);
+      // If user exists:
+      if (res?.exists) {
+        if (res.verified === true) {
+          router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
+          return;
+        }
+        // not verified OR unknown => go verify (or sign in to continue)
+        router.replace("/verify-code");
         return;
       }
 
-      setErr(msg);
+      router.replace("/verify-code");
+    } catch (e2) {
+      setErr(getErrorMessage(e2, "Unable to create account."));
     } finally {
       setBusy(false);
     }
@@ -96,31 +59,7 @@ export default function SignupPage() {
     <div className="dt-shell" style={{ paddingTop: 28 }}>
       <div className="contentCard">
         <div className="contentInner">
-          {/* Brand header */}
-          <div className="card" style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <div
-              style={{
-                height: 44,
-                width: 44,
-                borderRadius: 14,
-                border: "1px solid rgba(245,158,11,.55)",
-                background: "rgba(0,0,0,.35)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-              }}
-            >
-              <img src="/icon.png" alt="Day Trader" style={{ height: 34, width: 34, borderRadius: 10 }} />
-            </div>
-
-            <div style={{ flex: 1 }}>
-              <div className="cardTitle" style={{ marginBottom: 2 }}>Day Trader</div>
-              <div className="cardSub">Markets • Wallets • Execution</div>
-            </div>
-          </div>
-
-          <div className="card" style={{ marginTop: 12 }}>
+          <div className="card">
             <div className="cardTitle">Create account</div>
             <div className="cardSub" style={{ marginTop: 6 }}>
               Secure onboarding. A 6-digit verification code will be emailed to you.
@@ -142,12 +81,7 @@ export default function SignupPage() {
 
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
-              <input
-                className="input"
-                type="password"
-                value={password}
-                onChange={(x) => setPassword(x.target.value)}
-              />
+              <input className="input" type="password" value={password} onChange={(x) => setPassword(x.target.value)} />
               <div className="cardSub" style={{ marginTop: 6 }}>Minimum 8 characters.</div>
             </div>
 
@@ -155,9 +89,10 @@ export default function SignupPage() {
               {busy ? "Creating…" : "Create account"}
             </button>
 
-            <div className="card" style={{ display: "grid", gap: 8 }}>
-              <a className="pillBtn" href="/signin">Sign in</a>
-              <a className="pillBtn" href="/forgot-password">Forgot password</a>
+            <div className="cardSub" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <a href="/signin" style={{ color: "rgba(245,158,11,.95)" }}>Sign in</a>
+              <span style={{ opacity: 0.5 }}>•</span>
+              <a href="/forgot-password" style={{ color: "rgba(245,158,11,.95)" }}>Forgot password</a>
             </div>
           </form>
         </div>
