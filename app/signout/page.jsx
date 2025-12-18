@@ -23,9 +23,7 @@ export default function SignoutPage() {
         <div className="contentInner">
           <div className="card">
             <div className="cardTitle">Signing out…</div>
-            <div className="cardSub" style={{ marginTop: 6 }}>
-              Please wait.
-            </div>
+            <div className="cardSub" style={{ marginTop: 6 }}>Redirecting to sign in.</div>
           </div>
         </div>
       </div>
