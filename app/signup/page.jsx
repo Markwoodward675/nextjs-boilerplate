@@ -1,11 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signUp, signIn, signOut, ensureUserBootstrap, getErrorMessage } from "../../lib/api";
+import {
+  signUp,
+  signIn,
+  signOut,
+  ensureUserBootstrap,
+  getErrorMessage,
+} from "../../lib/api";
 
 export default function SignupPage() {
   const router = useRouter();
+  const [ref, setRef] = useState("");
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,47 +21,56 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      setRef(sp.get("ref") || "");
+    } catch {
+      setRef("");
+    }
+  }, []);
+
   const can = useMemo(() => {
     return email.trim() && fullName.trim() && password && password.length >= 8;
   }, [email, fullName, password]);
 
-  async function handleExistingAccount() {
-    // If user truly exists, try signing in with typed password:
+  async function routeExistingAccount() {
+    const e = email.trim().toLowerCase();
+
+    // try sign-in with typed password (best)
     try {
-      await signIn(email, password);
+      await signIn(e, password);
       const boot = await ensureUserBootstrap();
 
-      // verified -> go to signin (and sign them out)
       if (boot?.profile?.verificationCodeVerified) {
         await signOut();
-        router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
+        router.replace(`/signin?email=${encodeURIComponent(e)}`);
         return;
       }
 
-      // not verified -> go verify
       router.replace("/verify-code");
       return;
     } catch {
-      // Wrong password / unknown: push them to signin
-      router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
+      // wrong password / can't sign in -> send to signin
+      router.replace(`/signin?email=${encodeURIComponent(e)}&next=/verify-code`);
     }
   }
 
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
-    setBusy(true);
+
     setErr("");
+    setBusy(true);
 
     try {
-      await signUp({ fullName, email, password });
+      await signUp({ fullName, email: email.trim(), password, referralId: ref || "" });
       router.replace("/verify-code");
     } catch (e2) {
       const msg = getErrorMessage(e2, "Unable to create account.");
 
-      // Appwrite conflict
       if (/already exists/i.test(msg) || String(e2?.code) === "409") {
-        await handleExistingAccount();
+        await routeExistingAccount();
         return;
       }
 
@@ -79,17 +96,17 @@ export default function SignupPage() {
           <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Full name</div>
-              <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              <input className="input" value={fullName} onChange={(x) => setFullName(x.target.value)} />
             </div>
 
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input className="input" type="email" value={email} onChange={(x) => setEmail(x.target.value)} />
             </div>
 
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
-              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <input className="input" type="password" value={password} onChange={(x) => setPassword(x.target.value)} />
               <div className="cardSub" style={{ marginTop: 6 }}>Minimum 8 characters.</div>
             </div>
 
@@ -97,9 +114,9 @@ export default function SignupPage() {
               {busy ? "Creating…" : "Create account"}
             </button>
 
-            <div className="cardSub" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div className="cardSub">
+              Already have an account?{" "}
               <a href="/signin" style={{ color: "rgba(245,158,11,.95)" }}>Sign in</a>
-              <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>Forgot password</a>
             </div>
           </form>
         </div>
