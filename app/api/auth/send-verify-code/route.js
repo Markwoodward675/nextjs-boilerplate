@@ -1,3 +1,4 @@
+// app/api/auth/send-verify-code/route.js
 import "server-only";
 export const runtime = "nodejs";
 
@@ -5,14 +6,16 @@ import { NextResponse } from "next/server";
 import { getAdminClient } from "../../../../lib/appwriteAdmin";
 
 function emailHtml({ brand, code, email }) {
+  // Simple hardcoded template (build-safe)
   return `
-  <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
-    <h2 style="margin:0 0 8px 0;">${brand}</h2>
-    <p style="margin:0 0 12px 0;">Your verification code is:</p>
-    <div style="font-size:28px;font-weight:800;letter-spacing:6px;margin:0 0 12px 0;">
-      ${code}
+  <div style="font-family:Arial,sans-serif;background:#0b1020;color:#e5e7eb;padding:24px;border-radius:14px">
+    <div style="font-size:18px;font-weight:800;color:#fbbf24">${brand}</div>
+    <div style="margin-top:10px;font-size:13px;color:#cbd5e1">Verification code for: <b>${email}</b></div>
+    <div style="margin-top:18px;padding:14px;border:1px solid rgba(251,191,36,.35);border-radius:12px;background:rgba(0,0,0,.35)">
+      <div style="font-size:12px;color:#cbd5e1;margin-bottom:6px">Your 6-digit code</div>
+      <div style="letter-spacing:6px;font-size:28px;font-weight:900;color:#f59e0b">${code}</div>
     </div>
-    <p style="margin:0;color:#555;font-size:12px;">Sent to: ${email}</p>
+    <div style="margin-top:14px;font-size:12px;color:#94a3b8">If you didn’t request this, you can ignore this email.</div>
   </div>`;
 }
 
@@ -22,9 +25,8 @@ export async function POST(req) {
     const userId = String(body?.userId || "").trim();
     if (!userId) return NextResponse.json({ ok: false, error: "Missing userId." }, { status: 400 });
 
-    const RESEND_API_KEY = (process.env.RESEND_API_KEY || "").trim();
-    const from = (process.env.VERIFY_FROM_EMAIL || "").trim();
-
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    const from = process.env.VERIFY_FROM_EMAIL;
     if (!RESEND_API_KEY || !from) {
       return NextResponse.json(
         { ok: false, error: "Email not configured. Set RESEND_API_KEY and VERIFY_FROM_EMAIL." },
@@ -34,6 +36,7 @@ export async function POST(req) {
 
     const { db, users, DATABASE_ID } = getAdminClient();
 
+    // fetch real email from Appwrite
     const u = await users.get(userId);
     const email = u?.email;
     if (!email) return NextResponse.json({ ok: false, error: "User email not found." }, { status: 400 });
@@ -46,13 +49,7 @@ export async function POST(req) {
       process.env.NEXT_PUBLIC_APPWRITE_VERIFY_CODES_COLLECTION_ID ||
       "verify_codes";
 
-    const payload = {
-      userId,
-      code,
-      used: false,
-      createdAt: now,
-      usedAt: "",
-    };
+    const payload = { userId, code, used: false, createdAt: now, usedAt: "" };
 
     // docId = userId
     try {
