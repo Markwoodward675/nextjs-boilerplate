@@ -5,22 +5,39 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { getAdminClient } from "../../../../lib/appwriteAdmin";
 
-function escapeHtml(s) {
-  return String(s || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function emailHtml({ brand, code, email }) {
+  return `
+  <div style="font-family:Inter,Arial,sans-serif;background:#050814;padding:24px;color:#e5e7eb">
+    <div style="max-width:560px;margin:0 auto;background:rgba(0,0,0,.55);border:1px solid rgba(245,158,11,.45);border-radius:16px;padding:18px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:12px;border:1px solid rgba(245,158,11,.5);background:rgba(0,0,0,.35)"></div>
+        <div>
+          <div style="font-weight:800;color:#fbbf24;font-size:18px">${brand}</div>
+          <div style="font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:rgba(253,230,138,.85)">Verification</div>
+        </div>
+      </div>
+
+      <h2 style="margin:14px 0 6px;color:#fff;font-size:16px">Your 6-digit verification code</h2>
+      <p style="margin:0 0 12px;color:rgba(226,232,240,.85);font-size:13px">
+        Use this code to verify your account (${email}):
+      </p>
+
+      <div style="font-size:28px;font-weight:900;letter-spacing:.25em;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);padding:14px 16px;border-radius:14px;color:#fbbf24;text-align:center">
+        ${code}
+      </div>
+
+      <p style="margin:12px 0 0;color:rgba(148,163,184,.9);font-size:12px">
+        If you didn’t request this, you can ignore this email.
+      </p>
+    </div>
+  </div>`;
 }
 
 export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
     const userId = String(body?.userId || "").trim();
-    if (!userId) {
-      return NextResponse.json({ ok: false, error: "Missing userId." }, { status: 400 });
-    }
+    if (!userId) return NextResponse.json({ ok: false, error: "Missing userId." }, { status: 400 });
 
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
     const from = process.env.VERIFY_FROM_EMAIL;
@@ -36,9 +53,7 @@ export async function POST(req) {
 
     const u = await users.get(userId);
     const email = u?.email;
-    if (!email) {
-      return NextResponse.json({ ok: false, error: "User email not found." }, { status: 400 });
-    }
+    if (!email) return NextResponse.json({ ok: false, error: "User email not found." }, { status: 400 });
 
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const now = new Date().toISOString();
@@ -48,15 +63,8 @@ export async function POST(req) {
       process.env.NEXT_PUBLIC_APPWRITE_VERIFY_CODES_COLLECTION_ID ||
       "verify_codes";
 
-    const payload = {
-      userId,
-      code,
-      used: false,
-      createdAt: now,
-      usedAt: "",
-    };
+    const payload = { userId, code, used: false, createdAt: now, usedAt: "" };
 
-    // docId = userId
     try {
       await db.getDocument(DATABASE_ID, VERIFY_COL, userId);
       await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, payload);
@@ -64,17 +72,7 @@ export async function POST(req) {
       await db.createDocument(DATABASE_ID, VERIFY_COL, userId, payload);
     }
 
-    // ✅ No react-dom/server. Simple HTML template.
-    const html = `
-      <div style="font-family:Inter,system-ui,Arial;max-width:520px;margin:0 auto;padding:16px">
-        <h2 style="margin:0 0 10px;color:#111">Day Trader</h2>
-        <p style="margin:0 0 14px;color:#333">Your verification code:</p>
-        <div style="font-size:28px;letter-spacing:6px;font-weight:800;padding:14px 16px;border:1px solid #eee;border-radius:12px;background:#fafafa;display:inline-block">
-          ${escapeHtml(code)}
-        </div>
-        <p style="margin:14px 0 0;color:#666;font-size:12px">Sent to ${escapeHtml(email)}</p>
-      </div>
-    `.trim();
+    const html = emailHtml({ brand: "Day Trader", code, email });
 
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
