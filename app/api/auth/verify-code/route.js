@@ -1,9 +1,12 @@
-// app/api/auth/verify-code/route.js
 import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { getAdminClient } from "../../../../lib/appwriteAdmin";
+
+function nowISO() {
+  return new Date().toISOString();
+}
 
 export async function POST(req) {
   try {
@@ -33,14 +36,11 @@ export async function POST(req) {
     if (doc.used) return NextResponse.json({ ok: false, error: "Code already used. Send a new one." }, { status: 400 });
     if (String(doc.code) !== code) return NextResponse.json({ ok: false, error: "Invalid code." }, { status: 400 });
 
-    await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, {
-      used: true,
-      usedAt: new Date().toISOString(),
-    });
+    await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, { used: true, usedAt: nowISO() });
 
-    const now = new Date().toISOString();
+    const now = nowISO();
 
-    // Mark verified in user_profile ONLY
+    // Mark verified in user_profile ONLY (no verifiedAt)
     try {
       await db.getDocument(DATABASE_ID, USER_PROFILE_COL, userId);
       await db.updateDocument(DATABASE_ID, USER_PROFILE_COL, userId, {
@@ -49,7 +49,7 @@ export async function POST(req) {
       });
     } catch {
       await db.createDocument(DATABASE_ID, USER_PROFILE_COL, userId, {
-        userId,
+        userId: crypto.randomUUID(),
         verificationCodeVerified: true,
         kycStatus: "not_submitted",
         createdAt: now,
