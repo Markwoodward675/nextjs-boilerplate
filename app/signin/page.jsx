@@ -7,9 +7,11 @@ import { signIn, getErrorMessage } from "../../lib/api";
 export default function SigninPage() {
   const router = useRouter();
   const sp = useSearchParams();
-  const next = sp.get("next") || "/verify-code";
 
-  const [email, setEmail] = useState(sp.get("email") || "");
+  const next = sp.get("next") || "/overview";
+  const prefill = sp.get("email") || "";
+
+  const [email, setEmail] = useState(prefill);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -19,9 +21,9 @@ export default function SigninPage() {
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
-
     setErr("");
     setBusy(true);
+
     try {
       await signIn(email.trim(), password);
       router.replace(next);
@@ -33,7 +35,7 @@ export default function SigninPage() {
   };
 
   return (
-    <div className="dt-shell" style={{ paddingTop: 26 }}>
+    <div className="dt-shell" style={{ paddingTop: 28 }}>
       <div className="contentCard">
         <div className="contentInner">
           <div className="card">
@@ -61,8 +63,8 @@ export default function SigninPage() {
             </button>
 
             <div className="cardSub" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <a className="dtLink" href="/signup">Create account</a>
-              <a className="dtLink" href="/forgot-password">Forgot password</a>
+              <a href="/signup" style={{ color: "rgba(245,158,11,.95)" }}>Create account</a>
+              <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>Forgot password</a>
             </div>
           </form>
         </div>
