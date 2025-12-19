@@ -1,8 +1,9 @@
+// app/api/auth/account-status/route.js
 import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { adminFindUserByEmail, getAdminClient } from "../../../../lib/appwriteAdmin";
+import { getAdminClient, Query } from "../../../../lib/appwriteAdmin";
 
 export async function POST(req) {
   try {
@@ -10,26 +11,42 @@ export async function POST(req) {
     const email = String(body?.email || "").trim().toLowerCase();
     if (!email) return NextResponse.json({ ok: false, error: "Missing email." }, { status: 400 });
 
-    const u = await adminFindUserByEmail(email);
-    if (!u?.$id) return NextResponse.json({ ok: true, exists: false, verified: false });
-
-    const { db, DATABASE_ID } = getAdminClient();
+    const { db, users, DATABASE_ID } = getAdminClient();
 
     const USER_PROFILE_COL =
       process.env.APPWRITE_USERS_COLLECTION_ID ||
       process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID ||
-      process.env.APPWRITE_PROFILES_COLLECTION_ID ||
       "user_profile";
 
+    // Try find profile by email
+    const prof = await db.listDocuments(DATABASE_ID, USER_PROFILE_COL, [
+      Query.equal("email", email),
+      Query.limit(1),
+    ]);
+
+    const profile = prof?.documents?.[0] || null;
+    if (profile) {
+      return NextResponse.json(
+        { ok: true, exists: true, verified: Boolean(profile.verificationCodeVerified), userId: profile.userId || profile.$id },
+        { status: 200 }
+      );
+    }
+
+    // Fallback: find user by email, then doc by id
+    const uRes = await users.list([Query.equal("email", email)], 1, 0);
+    const u = uRes?.users?.[0] || null;
+    if (!u?.$id) return NextResponse.json({ ok: true, exists: false }, { status: 200 });
+
     try {
-      const profile = await db.getDocument(DATABASE_ID, USER_PROFILE_COL, u.$id);
-      const verified = Boolean(profile?.verificationCodeVerified);
-      return NextResponse.json({ ok: true, exists: true, verified });
+      const doc = await db.getDocument(DATABASE_ID, USER_PROFILE_COL, u.$id);
+      return NextResponse.json(
+        { ok: true, exists: true, verified: Boolean(doc.verificationCodeVerified), userId: u.$id },
+        { status: 200 }
+      );
     } catch {
-      // user exists but profile doc missing => treat as unverified
-      return NextResponse.json({ ok: true, exists: true, verified: false });
+      return NextResponse.json({ ok: true, exists: true, verified: false, userId: u.$id }, { status: 200 });
     }
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Status check failed." }, { status: 500 });
+    return NextResponse.json({ ok: false, error: e?.message || "Status lookup failed." }, { status: 500 });
   }
 }
