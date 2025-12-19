@@ -31,8 +31,12 @@ export async function POST(req) {
 
     const doc = await db.getDocument(DATABASE_ID, VERIFY_COL, userId);
 
-    if (doc.used) return NextResponse.json({ ok: false, error: "Code already used. Send a new one." }, { status: 400 });
-    if (String(doc.code) !== code) return NextResponse.json({ ok: false, error: "Invalid code." }, { status: 400 });
+    if (doc.used) {
+      return NextResponse.json({ ok: false, error: "Code already used. Send a new one." }, { status: 400 });
+    }
+    if (String(doc.code) !== code) {
+      return NextResponse.json({ ok: false, error: "Invalid code." }, { status: 400 });
+    }
 
     await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, {
       used: true,
@@ -41,7 +45,7 @@ export async function POST(req) {
 
     const now = new Date().toISOString();
 
-    // Single source of truth: user_profile only
+    // ✅ user_profile is the single source of truth. No "verifiedAt".
     try {
       await db.getDocument(DATABASE_ID, USER_PROFILE_COL, userId);
       await db.updateDocument(DATABASE_ID, USER_PROFILE_COL, userId, {
