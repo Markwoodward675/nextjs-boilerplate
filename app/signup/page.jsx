@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signUp, signIn, signOut, ensureUserBootstrap, getAccountStatusByEmail, getErrorMessage } from "../../lib/api";
+import { signUp, ensureUserBootstrap, signOut, getErrorMessage } from "../../lib/api";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -25,38 +25,8 @@ export default function SignupPage() {
   }, []);
 
   const can = useMemo(() => {
-    return email.trim() && fullName.trim() && password && password.length >= 8;
-  }, [email, fullName, password]);
-
-  const handleExistingAccount = async () => {
-    const e = email.trim().toLowerCase();
-
-    // Try to sign in with provided password
-    try {
-      await signIn(e, password);
-      const boot = await ensureUserBootstrap();
-
-      if (boot?.profile?.verificationCodeVerified) {
-        await signOut();
-        router.replace(`/signin?email=${encodeURIComponent(e)}`);
-        return;
-      }
-
-      router.replace("/verify-code");
-      return;
-    } catch {
-      // ignore
-    }
-
-    // If password wrong, ask server status
-    const status = await getAccountStatusByEmail(e).catch(() => null);
-    if (status?.verified) {
-      router.replace(`/signin?email=${encodeURIComponent(e)}`);
-      return;
-    }
-
-    router.replace(`/signin?email=${encodeURIComponent(e)}&next=/verify-code`);
-  };
+    return fullName.trim() && email.trim() && password.length >= 8;
+  }, [fullName, email, password]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -67,21 +37,25 @@ export default function SignupPage() {
 
     try {
       await signUp({ fullName, email: email.trim(), password, referralId: ref || "" });
-      router.replace("/verify-code");
-    } catch (e2) {
-      const msg = getErrorMessage(e2, "Unable to create account.");
-      if (/already exists/i.test(msg) || String(e2?.code) === "409") {
-        await handleExistingAccount();
+
+      const boot = await ensureUserBootstrap().catch(() => null);
+      if (boot?.profile?.verificationCodeVerified) {
+        // verified already (rare) -> go signin
+        await signOut();
+        router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
         return;
       }
-      setErr(msg);
+
+      router.replace("/verify-code");
+    } catch (e2) {
+      setErr(getErrorMessage(e2, "Unable to create account."));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="dt-shell" style={{ paddingTop: 28 }}>
+    <div className="dt-shell" style={{ paddingTop: 26 }}>
       <div className="contentCard">
         <div className="contentInner">
           <div className="card">
@@ -93,20 +67,20 @@ export default function SignupPage() {
 
           {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
 
-          <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
+          <form onSubmit={submit} className="card" style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Full name</div>
-              <input className="input" value={fullName} onChange={(x) => setFullName(x.target.value)} />
+              <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
             </div>
 
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-              <input className="input" type="email" value={email} onChange={(x) => setEmail(x.target.value)} />
+              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
 
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
-              <input className="input" type="password" value={password} onChange={(x) => setPassword(x.target.value)} />
+              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
               <div className="cardSub" style={{ marginTop: 6 }}>Minimum 8 characters.</div>
             </div>
 
@@ -114,9 +88,9 @@ export default function SignupPage() {
               {busy ? "Creating…" : "Create account"}
             </button>
 
-            <div className="cardSub" style={{ display: "flex", justifyContent: "space-between" }}>
-              <a href="/signin" style={{ color: "rgba(245,158,11,.95)" }}>Sign in</a>
-              <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>Forgot password</a>
+            <div className="cardSub" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <a className="dtLink" href="/signin">Sign in</a>
+              <a className="dtLink" href="/forgot-password">Forgot password</a>
             </div>
           </form>
         </div>
