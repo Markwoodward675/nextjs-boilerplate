@@ -12,30 +12,25 @@ export async function POST(req) {
   try {
     const body = await req.json().catch(() => ({}));
     const userId = String(body?.userId || "").trim();
-
     if (!userId) {
-      return NextResponse.json(
-        { ok: false, error: "Missing userId." },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "Missing userId." }, { status: 400 });
     }
 
     const { db, users, DATABASE_ID } = getAdmin();
     const now = new Date().toISOString();
 
-    // ✅ Fetch user from Admin Users API (trusted)
+    // Trust admin users.get
     const u = await users.get(userId);
     const user = {
       $id: u?.$id,
       email: u?.email || "",
       name: u?.name || "",
-      status: u?.status,
       emailVerification: u?.emailVerification,
       $createdAt: u?.$createdAt,
       $updatedAt: u?.$updatedAt,
     };
 
-    // Ensure profile doc (docId = userId)
+    // Ensure profile doc (docId=userId)
     let profile = null;
     try {
       profile = await db.getDocument(DATABASE_ID, PROFILES_COL, userId);
@@ -51,7 +46,7 @@ export async function POST(req) {
       });
     }
 
-    // Ensure wallets (3 basic) — only if none exist
+    // Ensure wallets (create 3 only if none exist)
     try {
       const existing = await db.listDocuments(DATABASE_ID, WALLETS_COL, [
         Query.equal("userId", userId),
@@ -75,14 +70,11 @@ export async function POST(req) {
         await makeWallet();
       }
     } catch {
-      // ignore wallet bootstrap failures
+      // ignore
     }
 
     return NextResponse.json({ ok: true, user, profile }, { status: 200 });
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Bootstrap failed." },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: e?.message || "Bootstrap failed." }, { status: 500 });
   }
 }
