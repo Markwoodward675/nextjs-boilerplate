@@ -1,4 +1,3 @@
-// app/api/bootstrap/route.js
 import "server-only";
 export const runtime = "nodejs";
 
@@ -8,13 +7,17 @@ import { getAdmin, ID, Query } from "../../../lib/appwriteAdmin";
 const ENDPOINT = process.env.APPWRITE_ENDPOINT || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
 const PROJECT_ID = process.env.APPWRITE_PROJECT_ID || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
 
+// SINGLE SOURCE OF TRUTH:
 const USER_PROFILE_COL =
   process.env.APPWRITE_USERS_COLLECTION_ID ||
   process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID ||
+  process.env.APPWRITE_PROFILES_COLLECTION_ID ||
   "user_profile";
 
 const WALLETS_COL =
-  process.env.NEXT_PUBLIC_APPWRITE_WALLETS_COLLECTION_ID || "wallets";
+  process.env.NEXT_PUBLIC_APPWRITE_WALLETS_COLLECTION_ID ||
+  process.env.APPWRITE_WALLETS_COLLECTION_ID ||
+  "wallets";
 
 async function getAccount(cookie) {
   const r = await fetch(`${ENDPOINT}/account`, {
@@ -44,19 +47,18 @@ export async function GET(req) {
     try {
       profile = await db.getDocument(DATABASE_ID, USER_PROFILE_COL, me.$id);
     } catch {
+      // keep attributes minimal to avoid schema mismatch errors
       profile = await db.createDocument(DATABASE_ID, USER_PROFILE_COL, me.$id, {
         userId: me.$id,
-        email: me.email || "",
+        email: me.email,
         fullName: me.name || "",
-        kycStatus: "not_submitted",
         verificationCodeVerified: false,
-        countryLocked: false,
+        kycStatus: "not_submitted",
         createdAt: now,
-        updatedAt: now,
       });
     }
 
-    // Ensure wallets exist (create 3 basic wallets if none)
+    // Ensure wallets (create 3 only if none exist)
     try {
       const existing = await db.listDocuments(DATABASE_ID, WALLETS_COL, [
         Query.equal("userId", me.$id),
@@ -80,10 +82,14 @@ export async function GET(req) {
         await makeWallet();
       }
     } catch {
-      // ignore
+      // ignore wallet bootstrap failures
     }
 
-    return NextResponse.json({ ok: true, user: me, userId: me.$id, profile }, { status: 200 });
+    // ✅ what you asked for:
+    return NextResponse.json(
+      { ok: true, userId: me.$id, user: me, profile },
+      { status: 200 }
+    );
   } catch (e) {
     return NextResponse.json({ ok: false, error: e?.message || "Bootstrap failed." }, { status: 401 });
   }
