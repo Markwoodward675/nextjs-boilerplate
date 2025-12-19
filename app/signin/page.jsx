@@ -8,9 +8,8 @@ export default function SigninPage() {
   const router = useRouter();
   const sp = useSearchParams();
   const next = sp.get("next") || "/verify-code";
-  const presetEmail = sp.get("email") || "";
 
-  const [email, setEmail] = useState(presetEmail);
+  const [email, setEmail] = useState(sp.get("email") || "");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -20,6 +19,7 @@ export default function SigninPage() {
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
+
     setErr("");
     setBusy(true);
     try {
@@ -33,7 +33,7 @@ export default function SigninPage() {
   };
 
   return (
-    <div className="dt-shell" style={{ paddingTop: 28 }}>
+    <div className="dt-shell" style={{ paddingTop: 26 }}>
       <div className="contentCard">
         <div className="contentInner">
           <div className="card">
@@ -45,24 +45,24 @@ export default function SigninPage() {
 
           {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
 
-          <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
+          <form onSubmit={submit} className="card" style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-              <input className="input" type="email" value={email} onChange={(x) => setEmail(x.target.value)} />
+              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
 
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
-              <input className="input" type="password" value={password} onChange={(x) => setPassword(x.target.value)} />
+              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
 
             <button className="btnPrimary" disabled={!can || busy} type="submit">
               {busy ? "Signing in…" : "Sign in"}
             </button>
 
-            <div className="cardSub" style={{ display: "flex", justifyContent: "space-between" }}>
-              <a href="/signup" style={{ color: "rgba(245,158,11,.95)" }}>Create account</a>
-              <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>Forgot password</a>
+            <div className="cardSub" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <a className="dtLink" href="/signup">Create account</a>
+              <a className="dtLink" href="/forgot-password">Forgot password</a>
             </div>
           </form>
         </div>
