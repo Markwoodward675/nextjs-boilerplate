@@ -2,18 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  signUp,
-  signIn,
-  signOut,
-  ensureUserBootstrap,
-  getErrorMessage,
-} from "../../lib/api";
+import { signUp, signIn, signOut, ensureUserBootstrap, getAccountStatusByEmail, getErrorMessage } from "../../lib/api";
 
 export default function SignupPage() {
   const router = useRouter();
-  const [ref, setRef] = useState("");
 
+  const [ref, setRef] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,10 +28,10 @@ export default function SignupPage() {
     return email.trim() && fullName.trim() && password && password.length >= 8;
   }, [email, fullName, password]);
 
-  async function routeExistingAccount() {
+  const handleExistingAccount = async () => {
     const e = email.trim().toLowerCase();
 
-    // try sign-in with typed password (best)
+    // Try to sign in with provided password
     try {
       await signIn(e, password);
       const boot = await ensureUserBootstrap();
@@ -51,10 +45,18 @@ export default function SignupPage() {
       router.replace("/verify-code");
       return;
     } catch {
-      // wrong password / can't sign in -> send to signin
-      router.replace(`/signin?email=${encodeURIComponent(e)}&next=/verify-code`);
+      // ignore
     }
-  }
+
+    // If password wrong, ask server status
+    const status = await getAccountStatusByEmail(e).catch(() => null);
+    if (status?.verified) {
+      router.replace(`/signin?email=${encodeURIComponent(e)}`);
+      return;
+    }
+
+    router.replace(`/signin?email=${encodeURIComponent(e)}&next=/verify-code`);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -68,12 +70,10 @@ export default function SignupPage() {
       router.replace("/verify-code");
     } catch (e2) {
       const msg = getErrorMessage(e2, "Unable to create account.");
-
       if (/already exists/i.test(msg) || String(e2?.code) === "409") {
-        await routeExistingAccount();
+        await handleExistingAccount();
         return;
       }
-
       setErr(msg);
     } finally {
       setBusy(false);
@@ -114,9 +114,9 @@ export default function SignupPage() {
               {busy ? "Creating…" : "Create account"}
             </button>
 
-            <div className="cardSub">
-              Already have an account?{" "}
+            <div className="cardSub" style={{ display: "flex", justifyContent: "space-between" }}>
               <a href="/signin" style={{ color: "rgba(245,158,11,.95)" }}>Sign in</a>
+              <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>Forgot password</a>
             </div>
           </form>
         </div>
