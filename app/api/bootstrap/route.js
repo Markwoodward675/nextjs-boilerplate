@@ -3,21 +3,86 @@ import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { getAdminClient } from "../../../lib/appwriteAdmin";
-import { Client, Account } from "node-appwrite";
+import { getAdmin, ID, Query } from "../../../lib/appwriteAdmin";
 
-export async function POST() {
+const PROFILES_COL = process.env.APPWRITE_PROFILES_COLLECTION_ID || "profiles";
+const WALLETS_COL = process.env.NEXT_PUBLIC_APPWRITE_WALLETS_COLLECTION_ID || "wallets";
+
+export async function POST(req) {
   try {
-    // Client-side uses account.get() already; this route is for profile hydration.
-    // We’ll just return profile by reading user id from Appwrite session via cookie-less client is not possible here,
-    // so we rely on client calling ensureUserBootstrap() AFTER account.get() succeeds,
-    // and it sends no body; we can’t know userId here unless you pass it.
-    // Hardfix: accept userId in body if you want.
-    return NextResponse.json(
-      { ok: false, error: "Bootstrap requires userId. Update call to POST { userId }." },
-      { status: 400 }
-    );
+    const body = await req.json().catch(() => ({}));
+    const userId = String(body?.userId || "").trim();
+
+    if (!userId) {
+      return NextResponse.json(
+        { ok: false, error: "Missing userId." },
+        { status: 400 }
+      );
+    }
+
+    const { db, users, DATABASE_ID } = getAdmin();
+    const now = new Date().toISOString();
+
+    // ✅ Fetch user from Admin Users API (trusted)
+    const u = await users.get(userId);
+    const user = {
+      $id: u?.$id,
+      email: u?.email || "",
+      name: u?.name || "",
+      status: u?.status,
+      emailVerification: u?.emailVerification,
+      $createdAt: u?.$createdAt,
+      $updatedAt: u?.$updatedAt,
+    };
+
+    // Ensure profile doc (docId = userId)
+    let profile = null;
+    try {
+      profile = await db.getDocument(DATABASE_ID, PROFILES_COL, userId);
+    } catch {
+      profile = await db.createDocument(DATABASE_ID, PROFILES_COL, userId, {
+        userId,
+        email: user.email,
+        fullName: user.name || "",
+        country: "",
+        kycStatus: "not_submitted",
+        verificationCodeVerified: false,
+        createdAt: now,
+      });
+    }
+
+    // Ensure wallets (3 basic) — only if none exist
+    try {
+      const existing = await db.listDocuments(DATABASE_ID, WALLETS_COL, [
+        Query.equal("userId", userId),
+        Query.limit(50),
+      ]);
+
+      if (!existing?.documents?.length) {
+        const makeWallet = async () =>
+          db.createDocument(DATABASE_ID, WALLETS_COL, ID.unique(), {
+            walletId: crypto.randomUUID(),
+            userId,
+            currencyType: "USD",
+            balance: 0,
+            isActive: true,
+            createdDate: now,
+            updatedDate: now,
+          });
+
+        await makeWallet();
+        await makeWallet();
+        await makeWallet();
+      }
+    } catch {
+      // ignore wallet bootstrap failures
+    }
+
+    return NextResponse.json({ ok: true, user, profile }, { status: 200 });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Bootstrap failed." }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Bootstrap failed." },
+      { status: 500 }
+    );
   }
 }
