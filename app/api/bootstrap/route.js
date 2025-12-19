@@ -5,51 +5,61 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { getAdmin, ID, Query } from "../../../lib/appwriteAdmin";
 
-const PROFILES_COL = process.env.APPWRITE_PROFILES_COLLECTION_ID || "profiles";
-const WALLETS_COL = process.env.NEXT_PUBLIC_APPWRITE_WALLETS_COLLECTION_ID || "wallets";
+const ENDPOINT = process.env.APPWRITE_ENDPOINT || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
+const PROJECT_ID = process.env.APPWRITE_PROJECT_ID || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
 
-export async function POST(req) {
+const USER_PROFILE_COL =
+  process.env.APPWRITE_USERS_COLLECTION_ID ||
+  process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID ||
+  "user_profile";
+
+const WALLETS_COL =
+  process.env.NEXT_PUBLIC_APPWRITE_WALLETS_COLLECTION_ID || "wallets";
+
+async function getAccount(cookie) {
+  const r = await fetch(`${ENDPOINT}/account`, {
+    method: "GET",
+    headers: { "x-appwrite-project": PROJECT_ID, cookie },
+    cache: "no-store",
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data?.message || "Not signed in.");
+  return data;
+}
+
+export async function GET(req) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const userId = String(body?.userId || "").trim();
-    if (!userId) {
-      return NextResponse.json({ ok: false, error: "Missing userId." }, { status: 400 });
+    if (!ENDPOINT || !PROJECT_ID) {
+      return NextResponse.json({ ok: false, error: "Appwrite not configured." }, { status: 500 });
     }
 
-    const { db, users, DATABASE_ID } = getAdmin();
+    const cookie = req.headers.get("cookie") || "";
+    const me = await getAccount(cookie);
+
+    const { db, DATABASE_ID } = getAdmin();
     const now = new Date().toISOString();
 
-    // Trust admin users.get
-    const u = await users.get(userId);
-    const user = {
-      $id: u?.$id,
-      email: u?.email || "",
-      name: u?.name || "",
-      emailVerification: u?.emailVerification,
-      $createdAt: u?.$createdAt,
-      $updatedAt: u?.$updatedAt,
-    };
-
-    // Ensure profile doc (docId=userId)
+    // Ensure user_profile doc (docId = userId)
     let profile = null;
     try {
-      profile = await db.getDocument(DATABASE_ID, PROFILES_COL, userId);
+      profile = await db.getDocument(DATABASE_ID, USER_PROFILE_COL, me.$id);
     } catch {
-      profile = await db.createDocument(DATABASE_ID, PROFILES_COL, userId, {
-        userId,
-        email: user.email,
-        fullName: user.name || "",
-        country: "",
+      profile = await db.createDocument(DATABASE_ID, USER_PROFILE_COL, me.$id, {
+        userId: me.$id,
+        email: me.email || "",
+        fullName: me.name || "",
         kycStatus: "not_submitted",
         verificationCodeVerified: false,
+        countryLocked: false,
         createdAt: now,
+        updatedAt: now,
       });
     }
 
-    // Ensure wallets (create 3 only if none exist)
+    // Ensure wallets exist (create 3 basic wallets if none)
     try {
       const existing = await db.listDocuments(DATABASE_ID, WALLETS_COL, [
-        Query.equal("userId", userId),
+        Query.equal("userId", me.$id),
         Query.limit(50),
       ]);
 
@@ -57,7 +67,7 @@ export async function POST(req) {
         const makeWallet = async () =>
           db.createDocument(DATABASE_ID, WALLETS_COL, ID.unique(), {
             walletId: crypto.randomUUID(),
-            userId,
+            userId: me.$id,
             currencyType: "USD",
             balance: 0,
             isActive: true,
@@ -73,8 +83,8 @@ export async function POST(req) {
       // ignore
     }
 
-    return NextResponse.json({ ok: true, user, profile }, { status: 200 });
+    return NextResponse.json({ ok: true, user: me, userId: me.$id, profile }, { status: 200 });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Bootstrap failed." }, { status: 500 });
+    return NextResponse.json({ ok: false, error: e?.message || "Bootstrap failed." }, { status: 401 });
   }
 }
