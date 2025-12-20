@@ -1,11 +1,13 @@
+// app/signup/page.jsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signUp, getErrorMessage } from "../../lib/api";
+import { signUp, signIn, ensureUserBootstrap, signOut, getErrorMessage } from "../lib/api";
 
 export default function SignupPage() {
   const router = useRouter();
+  const [ref, setRef] = useState("");
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -14,9 +16,39 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      setRef(sp.get("ref") || "");
+    } catch {
+      setRef("");
+    }
+  }, []);
+
   const can = useMemo(() => {
     return email.trim() && fullName.trim() && password && password.length >= 8;
   }, [email, fullName, password]);
+
+  async function handleConflict() {
+    // Best possible logic without leaking email existence:
+    // try signing in using typed password. If works -> route based on verification.
+    try {
+      await signIn(email.trim(), password);
+      const boot = await ensureUserBootstrap();
+
+      if (boot?.profile?.verificationCodeVerified) {
+        await signOut();
+        router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
+        return;
+      }
+
+      router.replace("/verify-code");
+      return;
+    } catch {
+      // If password is wrong, we can’t safely know verified/unverified.
+      router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
+    }
+  }
 
   const submit = async (e) => {
     e.preventDefault();
@@ -26,14 +58,13 @@ export default function SignupPage() {
     setBusy(true);
 
     try {
-      await signUp({ fullName, email, password });
+      await signUp({ fullName, email: email.trim(), password, referralId: ref || "" });
       router.replace("/verify-code");
     } catch (e2) {
       const msg = getErrorMessage(e2, "Unable to create account.");
 
-      // If already exists: push user to signin (then verify flow will handle unverified)
-      if (/already exists/i.test(msg) || /409/i.test(msg)) {
-        router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
+      if (/already exists/i.test(msg) || String(e2?.code) === "409" || String(e2?.status) === "409") {
+        await handleConflict();
         return;
       }
 
@@ -77,7 +108,7 @@ export default function SignupPage() {
               {busy ? "Creating…" : "Create account"}
             </button>
 
-            <div className="cardSub" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div className="cardSub" style={{ display: "flex", justifyContent: "space-between" }}>
               <a href="/signin" style={{ color: "rgba(245,158,11,.95)" }}>Sign in</a>
               <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>Forgot password</a>
             </div>
