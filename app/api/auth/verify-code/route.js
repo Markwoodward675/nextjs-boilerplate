@@ -1,3 +1,4 @@
+// app/api/auth/verify-code/route.js
 import "server-only";
 export const runtime = "nodejs";
 
@@ -11,8 +12,9 @@ export async function POST(req) {
     const code = String(body?.code || "").trim();
 
     if (!userId) return NextResponse.json({ ok: false, error: "Missing userId." }, { status: 400 });
-    if (!/^\d{6}$/.test(code))
+    if (!/^\d{6}$/.test(code)) {
       return NextResponse.json({ ok: false, error: "Code must be 6 digits." }, { status: 400 });
+    }
 
     const { db, users, DATABASE_ID } = getAdminClient();
     await users.get(userId);
@@ -29,14 +31,21 @@ export async function POST(req) {
 
     const doc = await db.getDocument(DATABASE_ID, VERIFY_COL, userId);
 
-    if (doc.used) return NextResponse.json({ ok: false, error: "Code already used. Send a new one." }, { status: 400 });
-    if (String(doc.code) !== code) return NextResponse.json({ ok: false, error: "Invalid code." }, { status: 400 });
+    if (doc.used) {
+      return NextResponse.json({ ok: false, error: "Code already used. Send a new one." }, { status: 400 });
+    }
+    if (String(doc.code) !== code) {
+      return NextResponse.json({ ok: false, error: "Invalid code." }, { status: 400 });
+    }
 
     const now = new Date().toISOString();
 
-    await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, { used: true, usedAt: now });
+    await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, {
+      used: true,
+      usedAt: now,
+    });
 
-    // Update ONLY known fields in user_profile
+    // Update user_profile ONLY (no verifiedAt field)
     try {
       await db.getDocument(DATABASE_ID, USER_PROFILE_COL, userId);
       await db.updateDocument(DATABASE_ID, USER_PROFILE_COL, userId, {
@@ -55,6 +64,9 @@ export async function POST(req) {
 
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Verify failed." }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Verify failed." },
+      { status: 500 }
+    );
   }
 }
