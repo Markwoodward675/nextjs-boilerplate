@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "../../lib/api";
 
-export default function SignoutPage() {
+export default function SignOutPage() {
   const router = useRouter();
 
   useEffect(() => {
@@ -19,9 +19,13 @@ export default function SignoutPage() {
 
   return (
     <div className="dt-shell" style={{ paddingTop: 28 }}>
-      <div className="card">
-        <div className="cardTitle">Signing out…</div>
-        <div className="cardSub" style={{ marginTop: 6 }}>Please wait.</div>
+      <div className="contentCard">
+        <div className="contentInner">
+          <div className="card">
+            <div className="cardTitle">Signing out…</div>
+            <div className="cardSub" style={{ marginTop: 6 }}>Please wait.</div>
+          </div>
+        </div>
       </div>
     </div>
   );
