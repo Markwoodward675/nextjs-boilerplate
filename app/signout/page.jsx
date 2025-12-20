@@ -1,8 +1,9 @@
+// app/signout/page.jsx
 "use client";
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { signOut } from "@/lib/api";
+import { signOut } from "../../lib/api";
 
 export default function SignoutPage() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function SignoutPage() {
   }, [router]);
 
   return (
-    <div className="dt-shell" style={{ paddingTop: 28 }}>
+    <div className="dt-shell" style={{ paddingTop: 26 }}>
       <div className="contentCard">
         <div className="contentInner">
           <div className="card">
