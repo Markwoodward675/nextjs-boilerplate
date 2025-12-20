@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import AppShellPro from "../../components/AppShellPro";
 import AvatarModal from "../../components/AvatarModal";
 import FakeNotifications from "../../components/FakeNotifications";
-import { ensureUserBootstrap, signOut, getErrorMessage } from "../../lib/api";
+import { ensureUserBootstrap, signOut, getErrorMessage } from "@/lib/api";
 
 export default function ProtectedLayout({ children }) {
   const router = useRouter();
