@@ -1,18 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { sendRecoveryEmail, getErrorMessage } from "@/lib/api";
+import { sendRecoveryEmail, getErrorMessage } from "../../lib/api";
 
 export default function ForgotPasswordPage() {
-  const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState("");
   const [err, setErr] = useState("");
 
-  const can = useMemo(() => email.trim().length > 3, [email]);
+  const can = useMemo(() => email.trim(), [email]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -25,8 +22,8 @@ export default function ForgotPasswordPage() {
     try {
       await sendRecoveryEmail(email.trim());
       setOk("Recovery email sent. Check your inbox.");
-    } catch (e2) {
-      setErr(getErrorMessage(e2, "Unable to send recovery email."));
+    } catch (ex) {
+      setErr(getErrorMessage(ex, "Unable to send recovery email."));
     } finally {
       setBusy(false);
     }
@@ -49,14 +46,7 @@ export default function ForgotPasswordPage() {
           <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-              <input
-                className="input"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-              />
+              <input className="input" type="email" value={email} onChange={(x) => setEmail(x.target.value)} />
             </div>
 
             <button className="btnPrimary" disabled={!can || busy} type="submit">
@@ -64,9 +54,7 @@ export default function ForgotPasswordPage() {
             </button>
 
             <div className="cardSub">
-              <a href="/signin" style={{ color: "rgba(56,189,248,.95)" }}>
-                Back to Sign in
-              </a>
+              <a href="/signin" style={{ color: "rgba(56,189,248,.95)" }}>Back to Sign in</a>
             </div>
           </form>
         </div>
