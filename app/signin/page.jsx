@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn, getErrorMessage } from "@/lib/api";
+import { signIn, getErrorMessage } from "../../lib/api";
 
 export default function SigninPage() {
   const router = useRouter();
@@ -16,12 +16,19 @@ export default function SigninPage() {
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
+
     setErr("");
     setBusy(true);
 
     try {
-      await signIn(email.trim(), password);
-      router.replace("/verify-code");
+      const boot = await signIn(email.trim(), password);
+
+      // If verified -> protected entry
+      if (boot?.profile?.verificationCodeVerified) {
+        router.replace("/overview");
+      } else {
+        router.replace("/verify-code");
+      }
     } catch (e2) {
       setErr(getErrorMessage(e2, "Unable to sign in."));
     } finally {
@@ -45,20 +52,21 @@ export default function SigninPage() {
           <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input className="input" type="email" value={email} onChange={(x) => setEmail(x.target.value)} />
             </div>
 
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
-              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <input className="input" type="password" value={password} onChange={(x) => setPassword(x.target.value)} />
             </div>
 
             <button className="btnPrimary" disabled={!can || busy} type="submit">
               {busy ? "Signing in…" : "Sign in"}
             </button>
 
-            <div className="cardSub" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div className="cardSub">
               <a href="/signup" style={{ color: "rgba(245,158,11,.95)" }}>Create account</a>
+              {"  •  "}
               <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>Forgot password</a>
             </div>
           </form>
