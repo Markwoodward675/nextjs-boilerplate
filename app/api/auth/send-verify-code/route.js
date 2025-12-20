@@ -1,9 +1,19 @@
-// app/api/auth/send-verify-code/route.js
 import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { getAdminClient } from "../../../../lib/appwriteAdmin";
+
+function emailHtml({ brand, code, email }) {
+  // Simple HTML string = build-safe in route handler
+  return `
+  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;padding:18px;line-height:1.5">
+    <h2 style="margin:0 0 10px">${brand}</h2>
+    <p style="margin:0 0 14px">Use this code to verify your email:</p>
+    <div style="font-size:28px;font-weight:800;letter-spacing:6px;margin:10px 0 18px">${code}</div>
+    <p style="margin:0;color:#666;font-size:13px">Sent to: ${email}</p>
+  </div>`;
+}
 
 export async function POST(req) {
   try {
@@ -23,7 +33,6 @@ export async function POST(req) {
 
     const { db, users, DATABASE_ID } = getAdminClient();
 
-    // Always fetch real email
     const u = await users.get(userId);
     const email = u?.email;
     if (!email) return NextResponse.json({ ok: false, error: "User email not found." }, { status: 400 });
@@ -38,7 +47,6 @@ export async function POST(req) {
 
     const payload = { userId, code, used: false, createdAt: now, usedAt: "" };
 
-    // Upsert: docId = userId
     try {
       await db.getDocument(DATABASE_ID, VERIFY_COL, userId);
       await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, payload);
@@ -46,23 +54,7 @@ export async function POST(req) {
       await db.createDocument(DATABASE_ID, VERIFY_COL, userId, payload);
     }
 
-    const safeBrand = "Day Trader";
-    const html = `
-      <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:#0b1020; padding:24px;">
-        <div style="max-width:520px; margin:0 auto; background:#0f172a; border:1px solid rgba(245,158,11,.35); border-radius:16px; padding:18px;">
-          <div style="color:#fbbf24; font-weight:800; font-size:18px;">${safeBrand}</div>
-          <div style="color:rgba(226,232,240,.9); margin-top:10px; font-size:14px;">
-            Your verification code is:
-          </div>
-          <div style="margin-top:12px; font-size:28px; letter-spacing:.4em; font-weight:900; color:#fde68a;">
-            ${code}
-          </div>
-          <div style="margin-top:12px; color:rgba(226,232,240,.75); font-size:12px;">
-            If you didn't request this, you can ignore this email.
-          </div>
-        </div>
-      </div>
-    `.trim();
+    const html = emailHtml({ brand: "Day Trader", code, email });
 
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -70,18 +62,11 @@ export async function POST(req) {
         authorization: `Bearer ${RESEND_API_KEY}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        from,
-        to: [email],
-        subject: "Your verification code",
-        html,
-      }),
+      body: JSON.stringify({ from, to: [email], subject: "Your verification code", html }),
     });
 
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      return NextResponse.json({ ok: false, error: data?.message || "Resend failed." }, { status: 500 });
-    }
+    if (!r.ok) return NextResponse.json({ ok: false, error: data?.message || "Resend failed." }, { status: 500 });
 
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (e) {
