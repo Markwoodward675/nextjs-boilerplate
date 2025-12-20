@@ -1,28 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signUp, getAccountStatusByEmail, getErrorMessage } from "../../lib/api";
+import { signUp, getErrorMessage } from "../../lib/api";
 
 export default function SignupPage() {
   const router = useRouter();
 
-  const [ref, setRef] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-
-  useEffect(() => {
-    try {
-      const sp = new URLSearchParams(window.location.search);
-      setRef(sp.get("ref") || "");
-    } catch {
-      setRef("");
-    }
-  }, []);
 
   const can = useMemo(() => {
     return email.trim() && fullName.trim() && password && password.length >= 8;
@@ -36,23 +26,14 @@ export default function SignupPage() {
     setBusy(true);
 
     try {
-      await signUp({ fullName, email: email.trim(), password, referralId: ref || "" });
+      await signUp({ fullName, email, password });
       router.replace("/verify-code");
     } catch (e2) {
       const msg = getErrorMessage(e2, "Unable to create account.");
 
-      // Appwrite conflict (already exists)
-      if (String(e2?.status) === "409" || /already exists/i.test(msg)) {
-        const status = await getAccountStatusByEmail(email.trim()).catch(() => null);
-
-        if (status?.verified) {
-          // registered + verified => send to signin
-          router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
-          return;
-        }
-
-        // exists but NOT verified => go verify flow
-        router.replace(`/signin?email=${encodeURIComponent(email.trim())}&next=/verify-code`);
+      // If already exists: push user to signin (then verify flow will handle unverified)
+      if (/already exists/i.test(msg) || /409/i.test(msg)) {
+        router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
         return;
       }
 
@@ -75,7 +56,7 @@ export default function SignupPage() {
 
           {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
 
-          <form onSubmit={submit} className="card" style={{ marginTop: 12, display: "grid", gap: 10 }}>
+          <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Full name</div>
               <input className="input" value={fullName} onChange={(x) => setFullName(x.target.value)} />
