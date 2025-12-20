@@ -1,16 +1,31 @@
+// app/signin/page.jsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn, ensureUserBootstrap, getErrorMessage } from "../../lib/api";
+import { signIn, ensureUserBootstrap, getErrorMessage } from "../lib/api";
 
 export default function SigninPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [nextPath, setNextPath] = useState("/dashboard");
+
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const e = sp.get("email") || "";
+      const n = sp.get("next") || "/dashboard";
+      if (e) setEmail(e);
+      setNextPath(n);
+    } catch {
+      setNextPath("/dashboard");
+    }
+  }, []);
 
   const can = useMemo(() => email.trim() && password, [email, password]);
 
@@ -18,18 +33,21 @@ export default function SigninPage() {
     e.preventDefault();
     if (busy) return;
 
-    setBusy(true);
     setErr("");
+    setBusy(true);
 
     try {
-      await signIn(email, password);
+      await signIn(email.trim(), password);
 
       const boot = await ensureUserBootstrap();
-      if (boot?.profile?.verificationCodeVerified) {
-        router.replace("/overview");
-      } else {
+      const verified = Boolean(boot?.profile?.verificationCodeVerified);
+
+      if (!verified) {
         router.replace("/verify-code");
+        return;
       }
+
+      router.replace(nextPath || "/dashboard");
     } catch (e2) {
       setErr(getErrorMessage(e2, "Unable to sign in."));
     } finally {
@@ -43,7 +61,9 @@ export default function SigninPage() {
         <div className="contentInner">
           <div className="card">
             <div className="cardTitle">Sign in</div>
-            <div className="cardSub" style={{ marginTop: 6 }}>Secure access to your dashboard.</div>
+            <div className="cardSub" style={{ marginTop: 6 }}>
+              Secure access to your dashboard.
+            </div>
           </div>
 
           {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
@@ -63,7 +83,7 @@ export default function SigninPage() {
               {busy ? "Signing in…" : "Sign in"}
             </button>
 
-            <div className="cardSub" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div className="cardSub" style={{ display: "flex", justifyContent: "space-between" }}>
               <a href="/signup" style={{ color: "rgba(245,158,11,.95)" }}>Create account</a>
               <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>Forgot password</a>
             </div>
