@@ -1,9 +1,8 @@
-// app/signup/page.jsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signUp, signIn, ensureUserBootstrap, signOut, getErrorMessage } from "../lib/api";
+import { signUp, signIn, ensureUserBootstrap, signOut, getErrorMessage } from "@/lib/api";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -30,8 +29,7 @@ export default function SignupPage() {
   }, [email, fullName, password]);
 
   async function handleConflict() {
-    // Best possible logic without leaking email existence:
-    // try signing in using typed password. If works -> route based on verification.
+    // If account exists, try sign-in with typed password.
     try {
       await signIn(email.trim(), password);
       const boot = await ensureUserBootstrap();
@@ -45,7 +43,7 @@ export default function SignupPage() {
       router.replace("/verify-code");
       return;
     } catch {
-      // If password is wrong, we can’t safely know verified/unverified.
+      // Wrong password or unknown -> send to sign-in
       router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
     }
   }
@@ -85,23 +83,47 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
+          {err ? (
+            <div className="flashError" style={{ marginTop: 12 }}>
+              {err}
+            </div>
+          ) : null}
 
           <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <div>
-              <div className="cardSub" style={{ marginBottom: 6 }}>Full name</div>
+              <div className="cardSub" style={{ marginBottom: 6 }}>
+                Full name
+              </div>
               <input className="input" value={fullName} onChange={(x) => setFullName(x.target.value)} />
             </div>
 
             <div>
-              <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-              <input className="input" type="email" value={email} onChange={(x) => setEmail(x.target.value)} />
+              <div className="cardSub" style={{ marginBottom: 6 }}>
+                Email
+              </div>
+              <input
+                className="input"
+                type="email"
+                value={email}
+                onChange={(x) => setEmail(x.target.value)}
+                autoComplete="email"
+              />
             </div>
 
             <div>
-              <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
-              <input className="input" type="password" value={password} onChange={(x) => setPassword(x.target.value)} />
-              <div className="cardSub" style={{ marginTop: 6 }}>Minimum 8 characters.</div>
+              <div className="cardSub" style={{ marginBottom: 6 }}>
+                Password
+              </div>
+              <input
+                className="input"
+                type="password"
+                value={password}
+                onChange={(x) => setPassword(x.target.value)}
+                autoComplete="new-password"
+              />
+              <div className="cardSub" style={{ marginTop: 6 }}>
+                Minimum 8 characters.
+              </div>
             </div>
 
             <button className="btnPrimary" disabled={!can || busy} type="submit">
@@ -109,8 +131,12 @@ export default function SignupPage() {
             </button>
 
             <div className="cardSub" style={{ display: "flex", justifyContent: "space-between" }}>
-              <a href="/signin" style={{ color: "rgba(245,158,11,.95)" }}>Sign in</a>
-              <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>Forgot password</a>
+              <a href="/signin" style={{ color: "rgba(245,158,11,.95)" }}>
+                Sign in
+              </a>
+              <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>
+                Forgot password
+              </a>
             </div>
           </form>
         </div>
