@@ -1,4 +1,3 @@
-// app/reset-password/page.jsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -12,12 +11,14 @@ export default function ResetPasswordPage() {
   const userId = sp.get("userId") || "";
   const secret = sp.get("secret") || "";
 
+  const [emailHint, setEmailHint] = useState(""); // for accessibility (optional)
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
 
-  const can = useMemo(() => password.length >= 8 && userId && secret, [password, userId, secret]);
+  const linkOk = Boolean(userId && secret);
+  const can = useMemo(() => linkOk && password.length >= 8, [linkOk, password]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -30,7 +31,7 @@ export default function ResetPasswordPage() {
     try {
       await completePasswordRecovery({ userId, secret, password });
       setOk("Password updated. Redirecting to sign in…");
-      setTimeout(() => router.replace("/signin"), 800);
+      setTimeout(() => router.replace("/signin"), 900);
     } catch (e2) {
       setErr(getErrorMessage(e2, "Invalid recovery link."));
     } finally {
@@ -49,9 +50,9 @@ export default function ResetPasswordPage() {
             </div>
           </div>
 
-          {!userId || !secret ? (
+          {!linkOk ? (
             <div className="flashError" style={{ marginTop: 12 }}>
-              Invalid recovery link.
+              Invalid recovery link. Please request a new recovery email.
             </div>
           ) : null}
 
@@ -59,15 +60,45 @@ export default function ResetPasswordPage() {
           {ok ? <div className="flashOk" style={{ marginTop: 12 }}>{ok}</div> : null}
 
           <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
+            {/* ✅ Accessibility: include username/email field (can be hidden) */}
+            <input
+              type="email"
+              autoComplete="username"
+              value={emailHint}
+              onChange={(e) => setEmailHint(e.target.value)}
+              style={{
+                position: "absolute",
+                opacity: 0,
+                pointerEvents: "none",
+                height: 0,
+                width: 0,
+              }}
+              tabIndex={-1}
+              aria-hidden="true"
+            />
+
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>New password</div>
-              <input className="input" type="password" value={password} onChange={(x) => setPassword(x.target.value)} />
+              <input
+                className="input"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(x) => setPassword(x.target.value)}
+                placeholder="••••••••"
+              />
               <div className="cardSub" style={{ marginTop: 6 }}>Minimum 8 characters.</div>
             </div>
 
             <button className="btnPrimary" disabled={!can || busy} type="submit">
               {busy ? "Updating…" : "Update password"}
             </button>
+
+            <div className="cardSub">
+              <a href="/signin" style={{ color: "rgba(245,158,11,.95)" }}>
+                Back to Sign in
+              </a>
+            </div>
           </form>
         </div>
       </div>
