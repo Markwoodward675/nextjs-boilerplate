@@ -3,25 +3,7 @@ import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { getAdminClient } from "@/lib/appwriteAdmin";
-
-function escapeHtml(s) {
-  return String(s || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-async function upsertDoc(db, DATABASE_ID, collectionId, docId, data) {
-  // Basic upsert (no schema guessing needed because we only write safe fields)
-  try {
-    await db.getDocument(DATABASE_ID, collectionId, docId);
-    return await db.updateDocument(DATABASE_ID, collectionId, docId, data);
-  } catch {
-    return await db.createDocument(DATABASE_ID, collectionId, docId, data);
-  }
-}
+import { getAdminClient } from "../../../../lib/appwriteAdmin";
 
 export async function POST(req) {
   try {
@@ -41,7 +23,7 @@ export async function POST(req) {
 
     const { db, users, DATABASE_ID } = getAdminClient();
 
-    // Always fetch real email from Appwrite Users API
+    // Always fetch real email
     const u = await users.get(userId);
     const email = u?.email;
     if (!email) return NextResponse.json({ ok: false, error: "User email not found." }, { status: 400 });
@@ -54,27 +36,33 @@ export async function POST(req) {
       process.env.NEXT_PUBLIC_APPWRITE_VERIFY_CODES_COLLECTION_ID ||
       "verify_codes";
 
-    // Store code (docId = userId)
-    await upsertDoc(db, DATABASE_ID, VERIFY_COL, userId, {
-      userId,
-      code,
-      used: false,
-      createdAt: now, // if your schema doesn't include this, remove it from schema or remove this line
-    });
+    const payload = { userId, code, used: false, createdAt: now, usedAt: "" };
 
-    // Plain HTML (no react-dom/server)
+    // Upsert: docId = userId
+    try {
+      await db.getDocument(DATABASE_ID, VERIFY_COL, userId);
+      await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, payload);
+    } catch {
+      await db.createDocument(DATABASE_ID, VERIFY_COL, userId, payload);
+    }
+
+    const safeBrand = "Day Trader";
     const html = `
-      <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; padding:16px;">
-        <h2 style="margin:0 0 8px;">Day Trader</h2>
-        <p style="margin:0 0 12px; color:#334155;">Your verification code is:</p>
-        <div style="font-size:28px; font-weight:800; letter-spacing:6px; padding:12px 16px; border:1px solid #e2e8f0; border-radius:12px; display:inline-block;">
-          ${escapeHtml(code)}
+      <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:#0b1020; padding:24px;">
+        <div style="max-width:520px; margin:0 auto; background:#0f172a; border:1px solid rgba(245,158,11,.35); border-radius:16px; padding:18px;">
+          <div style="color:#fbbf24; font-weight:800; font-size:18px;">${safeBrand}</div>
+          <div style="color:rgba(226,232,240,.9); margin-top:10px; font-size:14px;">
+            Your verification code is:
+          </div>
+          <div style="margin-top:12px; font-size:28px; letter-spacing:.4em; font-weight:900; color:#fde68a;">
+            ${code}
+          </div>
+          <div style="margin-top:12px; color:rgba(226,232,240,.75); font-size:12px;">
+            If you didn't request this, you can ignore this email.
+          </div>
         </div>
-        <p style="margin:12px 0 0; color:#64748b; font-size:12px;">
-          This code was sent to ${escapeHtml(email)}. If you didn’t request this, you can ignore it.
-        </p>
       </div>
-    `;
+    `.trim();
 
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
