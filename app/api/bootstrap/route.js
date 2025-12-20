@@ -3,21 +3,18 @@ import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { getAdminClient, ID, Query } from "@/lib/appwriteAdmin";
+import { getAdmin, ID, Query } from "../../../lib/appwriteAdmin";
 
 const ENDPOINT = process.env.APPWRITE_ENDPOINT || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT;
 const PROJECT_ID = process.env.APPWRITE_PROJECT_ID || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
 
-// Single source of truth
 const USER_PROFILE_COL =
   process.env.APPWRITE_USERS_COLLECTION_ID ||
   process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID ||
   "user_profile";
 
 const WALLETS_COL =
-  process.env.APPWRITE_WALLETS_COLLECTION_ID ||
-  process.env.NEXT_PUBLIC_APPWRITE_WALLETS_COLLECTION_ID ||
-  "wallets";
+  process.env.NEXT_PUBLIC_APPWRITE_WALLETS_COLLECTION_ID || "wallets";
 
 async function getAccount(cookie) {
   const r = await fetch(`${ENDPOINT}/account`, {
@@ -30,30 +27,7 @@ async function getAccount(cookie) {
   return data;
 }
 
-async function upsertProfile(db, DATABASE_ID, me) {
-  // Write only safe fields (avoid “Unknown attribute” again)
-  const base = {
-    userId: me.$id,
-    email: me.email,
-    fullName: me.name || "",
-    verificationCodeVerified: false,
-    kycStatus: "not_submitted",
-  };
-
-  try {
-    const doc = await db.getDocument(DATABASE_ID, USER_PROFILE_COL, me.$id);
-    // keep existing verified flag if already verified
-    const verified = Boolean(doc?.verificationCodeVerified);
-    const next = { ...base, verificationCodeVerified: verified };
-    await db.updateDocument(DATABASE_ID, USER_PROFILE_COL, me.$id, next);
-    return await db.getDocument(DATABASE_ID, USER_PROFILE_COL, me.$id);
-  } catch {
-    await db.createDocument(DATABASE_ID, USER_PROFILE_COL, me.$id, base);
-    return await db.getDocument(DATABASE_ID, USER_PROFILE_COL, me.$id);
-  }
-}
-
-export async function GET(req) {
+export async function POST(req) {
   try {
     if (!ENDPOINT || !PROJECT_ID) {
       return NextResponse.json({ ok: false, error: "Appwrite not configured." }, { status: 500 });
@@ -62,43 +36,65 @@ export async function GET(req) {
     const cookie = req.headers.get("cookie") || "";
     const me = await getAccount(cookie);
 
-    const { db, DATABASE_ID } = getAdminClient();
+    const { db, DATABASE_ID } = getAdmin();
+    const now = new Date().toISOString();
 
-    const profile = await upsertProfile(db, DATABASE_ID, me);
+    // Ensure user_profile doc (docId = me.$id)
+    let profile = null;
+    try {
+      profile = await db.getDocument(DATABASE_ID, USER_PROFILE_COL, me.$id);
+    } catch {
+      profile = await db.createDocument(DATABASE_ID, USER_PROFILE_COL, me.$id, {
+        userId: me.$id,
+        email: me.email,
+        fullName: me.name || "",
+        kycStatus: "not_submitted",
+        verificationCodeVerified: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
 
-    // Wallet bootstrap is best-effort (won’t block app)
+    // Ensure wallets exist (3 basic). Ignore failure.
     try {
       const existing = await db.listDocuments(DATABASE_ID, WALLETS_COL, [
         Query.equal("userId", me.$id),
-        Query.limit(10),
+        Query.limit(50),
       ]);
 
       if (!existing?.documents?.length) {
-        await db.createDocument(DATABASE_ID, WALLETS_COL, ID.unique(), {
-          userId: me.$id,
-          kind: "main",
-          balance: 0,
-        });
-        await db.createDocument(DATABASE_ID, WALLETS_COL, ID.unique(), {
-          userId: me.$id,
-          kind: "trading",
-          balance: 0,
-        });
-        await db.createDocument(DATABASE_ID, WALLETS_COL, ID.unique(), {
-          userId: me.$id,
-          kind: "affiliate",
-          balance: 0,
-        });
+        const makeWallet = async () =>
+          db.createDocument(DATABASE_ID, WALLETS_COL, ID.unique(), {
+            walletId: crypto.randomUUID(),
+            userId: me.$id,
+            currencyType: "USD",
+            balance: 0,
+            isActive: true,
+            createdDate: now,
+            updatedDate: now,
+          });
+
+        await makeWallet();
+        await makeWallet();
+        await makeWallet();
       }
     } catch {
       // ignore
     }
 
     return NextResponse.json(
-      { ok: true, me, user: me, userId: me.$id, profile },
+      { ok: true, userId: me.$id, user: me, profile },
       { status: 200 }
     );
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e?.message || "Bootstrap failed." }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Bootstrap failed." },
+      { status: 401 }
+    );
   }
+}
+
+export async function GET(req) {
+  // Convenience if you ever GET it
+  return POST(req);
 }
