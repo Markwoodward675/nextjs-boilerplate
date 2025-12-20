@@ -16,71 +16,49 @@ const USER_PROFILE_COL =
 const WALLETS_COL =
   process.env.NEXT_PUBLIC_APPWRITE_WALLETS_COLLECTION_ID || "wallets";
 
-function readBearer(req) {
-  const auth = req.headers.get("authorization") || "";
-  if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
-  return "";
-}
-
-async function getAccountByJWT(jwt) {
+async function getAccount(cookie) {
   const r = await fetch(`${ENDPOINT}/account`, {
     method: "GET",
-    headers: {
-      "x-appwrite-project": PROJECT_ID,
-      "x-appwrite-jwt": jwt,
-    },
+    headers: { "x-appwrite-project": PROJECT_ID, cookie },
     cache: "no-store",
   });
-
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data?.message || "Not signed in.");
   return data;
 }
 
-export async function POST(req) {
+export async function GET(req) {
   try {
     if (!ENDPOINT || !PROJECT_ID) {
       return NextResponse.json({ ok: false, error: "Appwrite not configured." }, { status: 500 });
     }
 
-    // ✅ JWT from client
-    const jwt = readBearer(req);
-    if (!jwt) {
-      return NextResponse.json({ ok: false, error: "Unauthorized (missing JWT)." }, { status: 401 });
-    }
-
-    const body = await req.json().catch(() => ({}));
-    const claimedUserId = String(body?.userId || "").trim();
-
-    // ✅ Verify JWT and get real user
-    const me = await getAccountByJWT(jwt);
-    if (claimedUserId && claimedUserId !== me.$id) {
-      return NextResponse.json({ ok: false, error: "Unauthorized (user mismatch)." }, { status: 401 });
-    }
+    const cookie = req.headers.get("cookie") || "";
+    const user = await getAccount(cookie);
 
     const { db, DATABASE_ID } = getAdmin();
     const now = new Date().toISOString();
 
-    // Ensure user_profile doc (docId = me.$id)
+    // Ensure user_profile doc (docId = user.$id)
     let profile = null;
     try {
-      profile = await db.getDocument(DATABASE_ID, USER_PROFILE_COL, me.$id);
+      profile = await db.getDocument(DATABASE_ID, USER_PROFILE_COL, user.$id);
     } catch {
-      profile = await db.createDocument(DATABASE_ID, USER_PROFILE_COL, me.$id, {
-        userId: me.$id,
-        email: me.email,
-        fullName: me.name || "",
-        kycStatus: "not_submitted",
+      profile = await db.createDocument(DATABASE_ID, USER_PROFILE_COL, user.$id, {
+        userId: user.$id,
+        email: user.email || "",
+        fullName: user.name || "",
         verificationCodeVerified: false,
+        kycStatus: "not_submitted",
         createdAt: now,
         updatedAt: now,
       });
     }
 
-    // Ensure 3 wallets (best-effort)
+    // Ensure wallets (optional)
     try {
       const existing = await db.listDocuments(DATABASE_ID, WALLETS_COL, [
-        Query.equal("userId", me.$id),
+        Query.equal("userId", user.$id),
         Query.limit(50),
       ]);
 
@@ -88,7 +66,7 @@ export async function POST(req) {
         const makeWallet = async () =>
           db.createDocument(DATABASE_ID, WALLETS_COL, ID.unique(), {
             walletId: crypto.randomUUID(),
-            userId: me.$id,
+            userId: user.$id,
             currencyType: "USD",
             balance: 0,
             isActive: true,
@@ -101,21 +79,11 @@ export async function POST(req) {
         await makeWallet();
       }
     } catch {
-      // ignore
+      // ignore bootstrap wallet failures
     }
 
-    return NextResponse.json(
-      { ok: true, userId: me.$id, user: me, profile },
-      { status: 200 }
-    );
+    return NextResponse.json({ ok: true, userId: user.$id, user, profile }, { status: 200 });
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Bootstrap failed." },
-      { status: 401 }
-    );
+    return NextResponse.json({ ok: false, error: e?.message || "Bootstrap failed." }, { status: 401 });
   }
-}
-
-export async function GET(req) {
-  return POST(req);
 }
