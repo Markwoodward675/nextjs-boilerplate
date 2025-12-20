@@ -1,142 +1,76 @@
+// app/signin/page.jsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { signUp, signIn, ensureUserBootstrap, signOut, getErrorMessage } from "@/lib/api";
+import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signIn, getErrorMessage, ensureUserBootstrap } from "../../lib/api";
 
-export default function SignupPage() {
+export default function SigninPage() {
   const router = useRouter();
-  const [ref, setRef] = useState("");
+  const sp = useSearchParams();
+  const next = sp.get("next") || "/overview";
 
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(sp.get("email") || "");
   const [password, setPassword] = useState("");
-
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  useEffect(() => {
-    try {
-      const sp = new URLSearchParams(window.location.search);
-      setRef(sp.get("ref") || "");
-    } catch {
-      setRef("");
-    }
-  }, []);
-
-  const can = useMemo(() => {
-    return email.trim() && fullName.trim() && password && password.length >= 8;
-  }, [email, fullName, password]);
-
-  async function handleConflict() {
-    // If account exists, try sign-in with typed password.
-    try {
-      await signIn(email.trim(), password);
-      const boot = await ensureUserBootstrap();
-
-      if (boot?.profile?.verificationCodeVerified) {
-        await signOut();
-        router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
-        return;
-      }
-
-      router.replace("/verify-code");
-      return;
-    } catch {
-      // Wrong password or unknown -> send to sign-in
-      router.replace(`/signin?email=${encodeURIComponent(email.trim())}`);
-    }
-  }
+  const can = useMemo(() => email.trim() && password, [email, password]);
 
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
-
     setErr("");
     setBusy(true);
 
     try {
-      await signUp({ fullName, email: email.trim(), password, referralId: ref || "" });
-      router.replace("/verify-code");
-    } catch (e2) {
-      const msg = getErrorMessage(e2, "Unable to create account.");
+      await signIn(email.trim(), password);
+      const boot = await ensureUserBootstrap();
 
-      if (/already exists/i.test(msg) || String(e2?.code) === "409" || String(e2?.status) === "409") {
-        await handleConflict();
+      if (!boot?.profile?.verificationCodeVerified) {
+        router.replace("/verify-code");
         return;
       }
 
-      setErr(msg);
+      router.replace(next);
+    } catch (e2) {
+      setErr(getErrorMessage(e2, "Unable to sign in."));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="dt-shell" style={{ paddingTop: 28 }}>
+    <div className="dt-shell" style={{ paddingTop: 26 }}>
       <div className="contentCard">
         <div className="contentInner">
           <div className="card">
-            <div className="cardTitle">Create account</div>
+            <div className="cardTitle">Sign in</div>
             <div className="cardSub" style={{ marginTop: 6 }}>
-              Secure onboarding. A 6-digit verification code will be emailed to you.
+              Secure access to your dashboard.
             </div>
           </div>
 
-          {err ? (
-            <div className="flashError" style={{ marginTop: 12 }}>
-              {err}
-            </div>
-          ) : null}
+          {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
 
           <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <div>
-              <div className="cardSub" style={{ marginBottom: 6 }}>
-                Full name
-              </div>
-              <input className="input" value={fullName} onChange={(x) => setFullName(x.target.value)} />
+              <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
+              <input className="input" type="email" value={email} onChange={(x) => setEmail(x.target.value)} />
             </div>
 
             <div>
-              <div className="cardSub" style={{ marginBottom: 6 }}>
-                Email
-              </div>
-              <input
-                className="input"
-                type="email"
-                value={email}
-                onChange={(x) => setEmail(x.target.value)}
-                autoComplete="email"
-              />
-            </div>
-
-            <div>
-              <div className="cardSub" style={{ marginBottom: 6 }}>
-                Password
-              </div>
-              <input
-                className="input"
-                type="password"
-                value={password}
-                onChange={(x) => setPassword(x.target.value)}
-                autoComplete="new-password"
-              />
-              <div className="cardSub" style={{ marginTop: 6 }}>
-                Minimum 8 characters.
-              </div>
+              <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
+              <input className="input" type="password" value={password} onChange={(x) => setPassword(x.target.value)} />
             </div>
 
             <button className="btnPrimary" disabled={!can || busy} type="submit">
-              {busy ? "Creating…" : "Create account"}
+              {busy ? "Signing in…" : "Sign in"}
             </button>
 
-            <div className="cardSub" style={{ display: "flex", justifyContent: "space-between" }}>
-              <a href="/signin" style={{ color: "rgba(245,158,11,.95)" }}>
-                Sign in
-              </a>
-              <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>
-                Forgot password
-              </a>
+            <div className="cardSub" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <a href="/signup" style={{ color: "rgba(245,158,11,.95)" }}>Create account</a>
+              <a href="/forgot-password" style={{ color: "rgba(245,158,11,.95)" }}>Forgot password</a>
             </div>
           </form>
         </div>
