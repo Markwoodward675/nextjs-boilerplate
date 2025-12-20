@@ -3,7 +3,7 @@ import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { getAdminClient } from "../../../../lib/appwriteAdmin";
+import { getAdminClient } from "@/lib/appwriteAdmin";
 
 async function safeGet(db, DATABASE_ID, col, id) {
   return await db.getDocument(DATABASE_ID, col, id);
