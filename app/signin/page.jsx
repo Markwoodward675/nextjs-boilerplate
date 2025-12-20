@@ -1,16 +1,12 @@
-// app/signin/page.jsx
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { signIn, getErrorMessage, ensureUserBootstrap } from "../../lib/api";
+import { useRouter } from "next/navigation";
+import { signIn, getErrorMessage } from "@/lib/api";
 
 export default function SigninPage() {
   const router = useRouter();
-  const sp = useSearchParams();
-  const next = sp.get("next") || "/overview";
-
-  const [email, setEmail] = useState(sp.get("email") || "");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -25,14 +21,7 @@ export default function SigninPage() {
 
     try {
       await signIn(email.trim(), password);
-      const boot = await ensureUserBootstrap();
-
-      if (!boot?.profile?.verificationCodeVerified) {
-        router.replace("/verify-code");
-        return;
-      }
-
-      router.replace(next);
+      router.replace("/verify-code");
     } catch (e2) {
       setErr(getErrorMessage(e2, "Unable to sign in."));
     } finally {
@@ -41,7 +30,7 @@ export default function SigninPage() {
   };
 
   return (
-    <div className="dt-shell" style={{ paddingTop: 26 }}>
+    <div className="dt-shell" style={{ paddingTop: 28 }}>
       <div className="contentCard">
         <div className="contentInner">
           <div className="card">
@@ -56,12 +45,12 @@ export default function SigninPage() {
           <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-              <input className="input" type="email" value={email} onChange={(x) => setEmail(x.target.value)} />
+              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
 
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
-              <input className="input" type="password" value={password} onChange={(x) => setPassword(x.target.value)} />
+              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
 
             <button className="btnPrimary" disabled={!can || busy} type="submit">
@@ -70,7 +59,7 @@ export default function SigninPage() {
 
             <div className="cardSub" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <a href="/signup" style={{ color: "rgba(245,158,11,.95)" }}>Create account</a>
-              <a href="/forgot-password" style={{ color: "rgba(245,158,11,.95)" }}>Forgot password</a>
+              <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>Forgot password</a>
             </div>
           </form>
         </div>
