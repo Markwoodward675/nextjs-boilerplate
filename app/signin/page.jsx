@@ -1,17 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { signIn, getErrorMessage } from "../../lib/api";
+import { useRouter } from "next/navigation";
+import { signIn, ensureUserBootstrap, getErrorMessage } from "../../lib/api";
 
 export default function SigninPage() {
   const router = useRouter();
-  const sp = useSearchParams();
 
-  const next = sp.get("next") || "/overview";
-  const prefill = sp.get("email") || "";
-
-  const [email, setEmail] = useState(prefill);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -21,12 +17,19 @@ export default function SigninPage() {
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
-    setErr("");
+
     setBusy(true);
+    setErr("");
 
     try {
-      await signIn(email.trim(), password);
-      router.replace(next);
+      await signIn(email, password);
+
+      const boot = await ensureUserBootstrap();
+      if (boot?.profile?.verificationCodeVerified) {
+        router.replace("/overview");
+      } else {
+        router.replace("/verify-code");
+      }
     } catch (e2) {
       setErr(getErrorMessage(e2, "Unable to sign in."));
     } finally {
@@ -40,22 +43,20 @@ export default function SigninPage() {
         <div className="contentInner">
           <div className="card">
             <div className="cardTitle">Sign in</div>
-            <div className="cardSub" style={{ marginTop: 6 }}>
-              Secure access to your dashboard.
-            </div>
+            <div className="cardSub" style={{ marginTop: 6 }}>Secure access to your dashboard.</div>
           </div>
 
           {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
 
-          <form onSubmit={submit} className="card" style={{ marginTop: 12, display: "grid", gap: 10 }}>
+          <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input className="input" type="email" value={email} onChange={(x) => setEmail(x.target.value)} />
             </div>
 
             <div>
               <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
-              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <input className="input" type="password" value={password} onChange={(x) => setPassword(x.target.value)} />
             </div>
 
             <button className="btnPrimary" disabled={!can || busy} type="submit">
