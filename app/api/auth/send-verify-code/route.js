@@ -3,7 +3,7 @@ import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { getAdminClient } from "../../../../lib/appwriteAdmin";
+import { getAdminClient } from "@/lib/appwriteAdmin";
 
 function escapeHtml(s) {
   return String(s || "")
