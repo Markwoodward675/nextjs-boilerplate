@@ -1,9 +1,8 @@
-// app/signin/page.jsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn, ensureUserBootstrap, getErrorMessage } from "../lib/api";
+import { signIn, ensureUserBootstrap, getErrorMessage } from "@/lib/api";
 
 export default function SigninPage() {
   const router = useRouter();
@@ -66,17 +65,37 @@ export default function SigninPage() {
             </div>
           </div>
 
-          {err ? <div className="flashError" style={{ marginTop: 12 }}>{err}</div> : null}
+          {err ? (
+            <div className="flashError" style={{ marginTop: 12 }}>
+              {err}
+            </div>
+          ) : null}
 
           <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
             <div>
-              <div className="cardSub" style={{ marginBottom: 6 }}>Email</div>
-              <input className="input" type="email" value={email} onChange={(x) => setEmail(x.target.value)} />
+              <div className="cardSub" style={{ marginBottom: 6 }}>
+                Email
+              </div>
+              <input
+                className="input"
+                type="email"
+                value={email}
+                onChange={(x) => setEmail(x.target.value)}
+                autoComplete="email"
+              />
             </div>
 
             <div>
-              <div className="cardSub" style={{ marginBottom: 6 }}>Password</div>
-              <input className="input" type="password" value={password} onChange={(x) => setPassword(x.target.value)} />
+              <div className="cardSub" style={{ marginBottom: 6 }}>
+                Password
+              </div>
+              <input
+                className="input"
+                type="password"
+                value={password}
+                onChange={(x) => setPassword(x.target.value)}
+                autoComplete="current-password"
+              />
             </div>
 
             <button className="btnPrimary" disabled={!can || busy} type="submit">
@@ -84,8 +103,12 @@ export default function SigninPage() {
             </button>
 
             <div className="cardSub" style={{ display: "flex", justifyContent: "space-between" }}>
-              <a href="/signup" style={{ color: "rgba(245,158,11,.95)" }}>Create account</a>
-              <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>Forgot password</a>
+              <a href="/signup" style={{ color: "rgba(245,158,11,.95)" }}>
+                Create account
+              </a>
+              <a href="/forgot-password" style={{ color: "rgba(56,189,248,.95)" }}>
+                Forgot password
+              </a>
             </div>
           </form>
         </div>
