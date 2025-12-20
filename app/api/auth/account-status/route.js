@@ -3,7 +3,7 @@ import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { getAdminClient, Query } from "../../../../lib/appwriteAdmin";
+import { getAdminClient, Query } from "@/lib/appwriteAdmin";
 
 export async function POST(req) {
   try {
