@@ -1,4 +1,3 @@
-// app/api/auth/verify-code/route.js
 import "server-only";
 export const runtime = "nodejs";
 
@@ -12,7 +11,8 @@ export async function POST(req) {
     const code = String(body?.code || "").trim();
 
     if (!userId) return NextResponse.json({ ok: false, error: "Missing userId." }, { status: 400 });
-    if (!/^\d{6}$/.test(code)) return NextResponse.json({ ok: false, error: "Code must be 6 digits." }, { status: 400 });
+    if (!/^\d{6}$/.test(code))
+      return NextResponse.json({ ok: false, error: "Code must be 6 digits." }, { status: 400 });
 
     const { db, users, DATABASE_ID } = getAdminClient();
     await users.get(userId);
@@ -36,7 +36,7 @@ export async function POST(req) {
 
     await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, { used: true, usedAt: now });
 
-    // Mark verified in user_profile ONLY
+    // Update ONLY known fields in user_profile
     try {
       await db.getDocument(DATABASE_ID, USER_PROFILE_COL, userId);
       await db.updateDocument(DATABASE_ID, USER_PROFILE_COL, userId, {
