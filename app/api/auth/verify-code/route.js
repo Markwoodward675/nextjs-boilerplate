@@ -3,20 +3,7 @@ import "server-only";
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { getAdminClient } from "@/lib/appwriteAdmin";
-
-async function safeGet(db, DATABASE_ID, col, id) {
-  return await db.getDocument(DATABASE_ID, col, id);
-}
-
-async function safeUpsert(db, DATABASE_ID, col, id, data) {
-  try {
-    await db.getDocument(DATABASE_ID, col, id);
-    return await db.updateDocument(DATABASE_ID, col, id, data);
-  } catch {
-    return await db.createDocument(DATABASE_ID, col, id, data);
-  }
-}
+import { getAdminClient } from "../../../../lib/appwriteAdmin";
 
 export async function POST(req) {
   try {
@@ -25,12 +12,9 @@ export async function POST(req) {
     const code = String(body?.code || "").trim();
 
     if (!userId) return NextResponse.json({ ok: false, error: "Missing userId." }, { status: 400 });
-    if (!/^\d{6}$/.test(code))
-      return NextResponse.json({ ok: false, error: "Code must be 6 digits." }, { status: 400 });
+    if (!/^\d{6}$/.test(code)) return NextResponse.json({ ok: false, error: "Code must be 6 digits." }, { status: 400 });
 
     const { db, users, DATABASE_ID } = getAdminClient();
-
-    // Ensure user exists
     await users.get(userId);
 
     const VERIFY_COL =
@@ -43,33 +27,31 @@ export async function POST(req) {
       process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID ||
       "user_profile";
 
-    const doc = await safeGet(db, DATABASE_ID, VERIFY_COL, userId);
+    const doc = await db.getDocument(DATABASE_ID, VERIFY_COL, userId);
 
-    if (doc?.used) {
-      return NextResponse.json(
-        { ok: false, error: "Code already used. Send a new one." },
-        { status: 400 }
-      );
-    }
-
-    if (String(doc?.code || "") !== code) {
-      return NextResponse.json({ ok: false, error: "Invalid code." }, { status: 400 });
-    }
+    if (doc.used) return NextResponse.json({ ok: false, error: "Code already used. Send a new one." }, { status: 400 });
+    if (String(doc.code) !== code) return NextResponse.json({ ok: false, error: "Invalid code." }, { status: 400 });
 
     const now = new Date().toISOString();
 
-    await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, {
-      used: true,
-      usedAt: now,
-    });
+    await db.updateDocument(DATABASE_ID, VERIFY_COL, userId, { used: true, usedAt: now });
 
-    // Single source of truth: user_profile (NO verifiedAt / verifiedAt is what broke you)
-    await safeUpsert(db, DATABASE_ID, USER_PROFILE_COL, userId, {
-      userId,
-      verificationCodeVerified: true,
-      kycStatus: "not_submitted",
-      updatedAt: now, // remove if schema doesn't have it
-    });
+    // Mark verified in user_profile ONLY
+    try {
+      await db.getDocument(DATABASE_ID, USER_PROFILE_COL, userId);
+      await db.updateDocument(DATABASE_ID, USER_PROFILE_COL, userId, {
+        verificationCodeVerified: true,
+        updatedAt: now,
+      });
+    } catch {
+      await db.createDocument(DATABASE_ID, USER_PROFILE_COL, userId, {
+        userId,
+        verificationCodeVerified: true,
+        kycStatus: "not_submitted",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
 
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (e) {
