@@ -1,10 +1,11 @@
+// app/signout/page.jsx
 "use client";
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { signOut } from "../../lib/api";
+import { signOut } from "../lib/api";
 
-export default function SignOutPage() {
+export default function SignoutPage() {
   const router = useRouter();
 
   useEffect(() => {
@@ -23,7 +24,9 @@ export default function SignOutPage() {
         <div className="contentInner">
           <div className="card">
             <div className="cardTitle">Signing out…</div>
-            <div className="cardSub" style={{ marginTop: 6 }}>Please wait.</div>
+            <div className="cardSub" style={{ marginTop: 6 }}>
+              Please wait.
+            </div>
           </div>
         </div>
       </div>
